@@ -1,0 +1,56 @@
+name: vcpkg package cache
+description: Restore or save the built vcpkg packages, keyed on everything that changes their ABI hash.
+
+inputs:
+  mode:
+    description: "`restore` before the build, `save` after it."
+    required: true
+  os:
+    description: The key's platform part, for example linux, windows or macos.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore vcpkg packages
+      if: inputs.mode == 'restore'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: .cache/vcpkg
+        key: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-
+
+    # Under a per-run key, so a partial set saved by a failed job never blocks a later
+    # complete one. The attempt is part of the key, so a rerun of a failed job saves too.
+    - name: Save vcpkg packages
+      if: inputs.mode == 'save'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: .cache/vcpkg
+        key: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+    # Each save holds every package of the ones before it, so only the newest per ref is worth
+    # keeping. Without the prune, per-run keys fill the 10 GB limit and evict main's cache.
+    # A fork's read-only token cannot delete caches; its PR's caches go when clean-cache.yaml
+    # runs on close.
+    - name: Prune older vcpkg packages
+      if: inputs.mode == 'save'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        REF: ${{ github.ref }}
+        PREFIX: vcpkg-${{ inputs.os }}-
+        KEY: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
+      run: |
+        set -euo pipefail
+        keys=$(gh cache list --ref "${REF}" --key "${PREFIX}" --limit 100 --json key --jq '.[].key')
+        if ! grep -qxF -- "${KEY}" <<<"${keys}"; then
+          echo "This run saved no cache under ${KEY}; keeping the older ones."
+          exit 0
+        fi
+        grep -vxF -- "${KEY}" <<<"${keys}" | while read -r old; do
+          [[ -n "${old}" ]] || continue
+          gh cache delete "${old}" --ref "${REF}" || echo "::warning::Could not delete cache ${old}"
+        done

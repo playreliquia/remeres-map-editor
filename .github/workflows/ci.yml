@@ -29,6 +29,7 @@ on:
       - ".yamllint.yaml"
       - ".reviewdog.yml"
       - ".github/workflows/**"
+      - ".github/actions/**"
 
 permissions:
   contents: read
@@ -69,6 +70,7 @@ jobs:
               - "vcpkg.json"
               - "CMakeLists.txt"
               - "CMakePresets.json"
+              - ".github/actions/vcpkg-cache/**"
               - ".clang-format"
               - ".yamllint.yaml"
               - ".reviewdog.yml"
@@ -111,7 +113,7 @@ jobs:
     if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     permissions:
       contents: read
-      packages: read
+      actions: write
     uses: ./.github/workflows/reusable-build-linux.yml
     secrets: inherit
 
@@ -121,7 +123,7 @@ jobs:
     if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     permissions:
       contents: read
-      packages: read
+      actions: write
     uses: ./.github/workflows/reusable-build-macos.yml
     secrets: inherit
 
@@ -131,7 +133,8 @@ jobs:
     if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     permissions:
       contents: read
-      packages: read
+      packages: write
+      actions: write
     uses: ./.github/workflows/reusable-build-windows.yml
     secrets: inherit
 

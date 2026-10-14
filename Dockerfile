@@ -78,6 +78,8 @@ RUN vcpkgCommitId="$(jq -r '."builtin-baseline"' vcpkg.json)" \
 
 WORKDIR /opt/vcpkg_manifest
 COPY vcpkg.json /opt/vcpkg_manifest/
+# The release-only triplets the linux-release preset names.
+COPY cmake/triplets /opt/vcpkg_manifest/triplets
 
 RUN --mount=type=secret,id=github_token,required=false \
 	--mount=type=cache,target=/opt/vcpkg/downloads \
@@ -118,8 +120,9 @@ RUN --mount=type=secret,id=github_token,required=false \
 		/opt/vcpkg/vcpkg install \
 			--x-manifest-root=/opt/vcpkg_manifest \
 			--x-install-root=/opt/vcpkg_installed \
-			--triplet=x64-linux \
-			--host-triplet=x64-linux; \
+			--overlay-triplets=/opt/vcpkg_manifest/triplets \
+			--triplet=x64-linux-release \
+			--host-triplet=x64-linux-release; \
 		if [ -n "${nuget_config}" ]; then rm -f "${nuget_config}"; fi'
 
 FROM dependencies AS build

@@ -17,6 +17,7 @@
           "type": "FILEPATH"
         },
         "CMAKE_COLOR_DIAGNOSTICS": "ON",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/cmake/triplets",
         "SPEED_UP_BUILD_UNITY": "ON"
       }
     },
@@ -26,9 +27,8 @@
       "displayName": "Windows - Release",
       "description": "Windows release build with Ninja and vcpkg",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
-        "VCPKG_HOST_TRIPLET": "x64-windows-static",
-        "VCPKG_BUILD_TYPE": "release",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-release",
+        "VCPKG_HOST_TRIPLET": "x64-windows",
         "VCPKG_PLATFORM_TOOLSET": "v145",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "OPTIONS_ENABLE_SCCACHE": "ON",
@@ -62,8 +62,7 @@
         "BUILD_STATIC_LIBRARY": "OFF",
         "SPEED_UP_BUILD_UNITY": "OFF",
         "VCPKG_TARGET_TRIPLET": "x64-windows",
-        "VCPKG_HOST_TRIPLET": "x64-windows",
-        "VCPKG_BUILD_TYPE": "debug"
+        "VCPKG_HOST_TRIPLET": "x64-windows"
       }
     },
     {
@@ -73,9 +72,8 @@
       "description": "Linux release build with Ninja and vcpkg",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_TARGET_TRIPLET": "x64-linux",
-        "VCPKG_HOST_TRIPLET": "x64-linux",
-        "VCPKG_BUILD_TYPE": "release",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-release",
+        "VCPKG_HOST_TRIPLET": "x64-linux-release",
         "OPTIONS_ENABLE_CCACHE": "ON"
       },
       "condition": {
@@ -92,8 +90,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DEBUG_LOG": "ON",
-        "SPEED_UP_BUILD_UNITY": "OFF",
-        "VCPKG_BUILD_TYPE": "debug"
+        "SPEED_UP_BUILD_UNITY": "OFF"
       }
     },
     {
@@ -103,9 +100,8 @@
       "description": "macOS release build with Ninja and vcpkg",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "VCPKG_TARGET_TRIPLET": "arm64-osx",
-        "VCPKG_HOST_TRIPLET": "arm64-osx",
-        "VCPKG_BUILD_TYPE": "release",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx-release",
+        "VCPKG_HOST_TRIPLET": "arm64-osx-release",
         "OPTIONS_ENABLE_CCACHE": "ON"
       },
       "condition": {
@@ -122,8 +118,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DEBUG_LOG": "ON",
-        "SPEED_UP_BUILD_UNITY": "OFF",
-        "VCPKG_BUILD_TYPE": "debug"
+        "SPEED_UP_BUILD_UNITY": "OFF"
       }
     }
   ],
