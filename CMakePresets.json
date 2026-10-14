@@ -90,7 +90,9 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DEBUG_LOG": "ON",
-        "SPEED_UP_BUILD_UNITY": "OFF"
+        "SPEED_UP_BUILD_UNITY": "OFF",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "VCPKG_HOST_TRIPLET": "x64-linux"
       }
     },
     {
@@ -118,7 +120,9 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "DEBUG_LOG": "ON",
-        "SPEED_UP_BUILD_UNITY": "OFF"
+        "SPEED_UP_BUILD_UNITY": "OFF",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx",
+        "VCPKG_HOST_TRIPLET": "arm64-osx"
       }
     }
   ],
