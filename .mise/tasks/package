@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#MISE description="Package the release editor with its data, brushes and icons into dist/"
+#MISE depends=["build"]
+set -euo pipefail
+
+# shellcheck source=.mise/lib/preset.sh
+source .mise/lib/preset.sh
+# The files the Dockerfile bundles beside the executable.
+payload=(data brushes icons LICENSE.rtf)
+bin="build/${os}-release/bin"
+case "${os}" in
+  windows) executable=canary-map-editor-x64.exe arch=x64 ;;
+  macos) executable=canary-map-editor arch=arm64 ;;
+  *) executable=canary-map-editor arch=x64 ;;
+esac
+archive="remeres-map-editor-${os}-${arch}.zip"
+
+rm -rf dist
+mkdir -p dist/remeres-map-editor
+cp -R "${payload[@]}" dist/remeres-map-editor/
+cp "${bin}/${executable}" dist/remeres-map-editor/
+# CMake's zip writer, so every OS packs the same way with the pinned tool.
+(cd dist && cmake -E tar cf "${archive}" --format=zip remeres-map-editor)
+ls -1 dist

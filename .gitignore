@@ -73,3 +73,9 @@ cmake-build-debug/
 *.dat
 *.manifest
 canary-map-editor
+
+# mise tasks
+.vcpkg/
+.cache/
+dist/
+!.mise/tasks/build/
