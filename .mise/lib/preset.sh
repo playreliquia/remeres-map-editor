@@ -8,6 +8,12 @@ case "$(uname)" in
   *) os=linux ;;
 esac
 
+# CMakeLists.txt requires GCC 14. Ubuntu 24.04 ships it as gcc-14 beside a default gcc 13, and
+# upstream's ci and Dockerfile select it the same way.
+if [[ "${os}" == linux && -z "${CXX:-}" ]] && command -v g++-14 >/dev/null; then
+  export CC=gcc-14 CXX=g++-14
+fi
+
 if [[ "${os}" == windows && -z "${VSCMD_VER:-}" ]]; then
   # Windows names it ProgramFiles, but the case survives only some launchers.
   program_files=$(cygpath -u "${ProgramFiles:-${PROGRAMFILES:-C:\\Program Files}}")

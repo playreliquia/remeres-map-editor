@@ -12,17 +12,18 @@ Getting Started
 Building
 ========
 
-[mise](https://mise.jdx.dev/getting-started.html) installs CMake, Ninja, the compiler cache and the lint tools at the versions pinned in `mise.toml`, then drives the build:
+[mise](https://mise.jdx.dev/getting-started.html) installs CMake, Ninja, the compiler cache and the lint tools at the versions pinned in `.mise/config.toml`, then drives the build:
 
 ```bash
-mise run setup    # clone vcpkg at the vcpkg.json baseline, add the upstream remote
-mise run build    # configure and build the release preset for this OS
-mise run package  # zip the editor with data/, brushes/, icons/ and LICENSE.rtf into dist/
+mise run setup      # clone vcpkg at the vcpkg.json baseline, add the upstream remote
+mise run build:dev  # configure and build the debug preset, for local development
+mise run build      # configure and build the release preset for this OS
+mise run package    # zip the release editor with data/, brushes/, icons/ and LICENSE.rtf into dist/
 ```
 
 mise does not install the compiler or the system libraries:
 
-* Linux: the `apt install` line in the [Ubuntu 24.04 guide](docs/building/ubuntu-24.04.md), which includes the GTK 3 headers wxWidgets builds against.
+* Linux: GCC 14 (`g++-14` on Ubuntu 24.04, which the build tasks select) and the `apt install` line in the [Ubuntu 24.04 guide](docs/building/ubuntu-24.04.md), which includes the GTK 3 headers wxWidgets builds against.
 * Windows: Visual Studio 2026 with the C++ workload. Run mise from Git Bash; the build tasks load the MSVC environment themselves.
 * macOS: the Xcode Command Line Tools.
 
