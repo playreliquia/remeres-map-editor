@@ -29,13 +29,16 @@ on:
       - ".yamllint.yaml"
       - ".reviewdog.yml"
       - ".github/workflows/**"
+      - ".github/actions/**"
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Runs on main queue instead, so a newer run never prunes the vcpkg cache an older one saved
+  # while it is still restoring from it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -48,14 +51,15 @@ jobs:
       docker: ${{ (github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && 'true' || steps.filter.outputs.docker }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect changed paths
         id: filter
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
         with:
           filters: |
             compile:
@@ -69,6 +73,7 @@ jobs:
               - "vcpkg.json"
               - "CMakeLists.txt"
               - "CMakePresets.json"
+              - ".github/actions/vcpkg-cache/**"
               - ".clang-format"
               - ".yamllint.yaml"
               - ".reviewdog.yml"
@@ -103,7 +108,6 @@ jobs:
       checks: write
       pull-requests: read
     uses: ./.github/workflows/reusable-checks.yml
-    secrets: inherit
 
   build-linux:
     name: Build - Linux
@@ -111,9 +115,8 @@ jobs:
     if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     permissions:
       contents: read
-      packages: read
+      actions: write
     uses: ./.github/workflows/reusable-build-linux.yml
-    secrets: inherit
 
   build-macos:
     name: Build - macOS
@@ -121,19 +124,35 @@ jobs:
     if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     permissions:
       contents: read
-      packages: read
+      actions: write
     uses: ./.github/workflows/reusable-build-macos.yml
-    secrets: inherit
 
+  # Two callers, because a reusable job cannot ask for more than its caller grants, even
+  # when skipped. Only trusted events get packages: write and push to the shared NuGet feed;
+  # pull requests and merge groups read it.
   build-windows:
     name: Build - Windows
     needs: [changes, checks]
-    if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
+    permissions:
+      contents: read
+      packages: write
+      actions: write
+    uses: ./.github/workflows/reusable-build-windows.yml
+    with:
+      nuget: readwrite
+
+  build-windows-pr:
+    name: Build - Windows
+    needs: [changes, checks]
+    if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true
     permissions:
       contents: read
       packages: read
+      actions: write
     uses: ./.github/workflows/reusable-build-windows.yml
-    secrets: inherit
+    with:
+      nuget: read
 
   build-docker:
     name: Build - Docker
@@ -147,7 +166,7 @@ jobs:
 
   # The single required check. It passes only when every job above succeeded or was skipped.
   ci:
-    needs: [changes, checks, build-linux, build-macos, build-windows, build-docker]
+    needs: [changes, checks, build-linux, build-macos, build-windows, build-windows-pr, build-docker]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

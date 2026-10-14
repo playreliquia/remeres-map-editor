@@ -5,10 +5,13 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
+    permissions:
+      contents: read
+      # Pruning the per-run vcpkg caches.
+      actions: write
     name: Compile (${{ matrix.buildtype }})
     strategy:
       fail-fast: false
@@ -18,20 +21,20 @@ jobs:
     env:
       CC: gcc-14
       CXX: g++-14
-      VCPKG_BINARY_CACHE_ACCESS: ${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && 'readwrite' || 'read' }}
-      VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && 'readwrite' || 'read' }};nugettimeout,600"
-      VCPKG_NUGET_API_KEY: ${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && secrets.VCPKG_PACKAGES_TOKEN || github.token }}
+      # The Actions cache below holds the files source. Unlike Windows this skips the NuGet
+      # feed: nuget.exe needs mono here, which costs minutes to install.
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v9
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          persist-credentials: false
+
+      - uses: ./.github/actions/vcpkg-cache
+        with:
+          mode: restore
+          os: linux
 
       - name: Get vcpkg baseline
         shell: bash
@@ -73,7 +76,6 @@ jobs:
             libxxf86vm-dev \
             linux-libc-dev \
             mesa-common-dev \
-            mono-complete \
             ninja-build \
             pkg-config \
             python3-venv
@@ -82,7 +84,7 @@ jobs:
           ninja --version
 
       - name: CCache
-        uses: hendrikmuhs/ccache-action@v1.2.23
+        uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03  # v1.2.23
         with:
           max-size: "1G"
           key: ccache-linux-${{ matrix.buildtype }}
@@ -90,61 +92,44 @@ jobs:
             ccache-linux
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2  # v11.6
         with:
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
 
-      - name: Setup NuGet for vcpkg
+      # Its own step, so install time shows apart from the compile, and a compile failure
+      # cannot hide an install success. CMake's configure then finds every package installed.
+      - name: Install vcpkg packages
+        # The preset's triplets.
         env:
-          NUGET_AUTH_TOKEN: ${{ env.VCPKG_NUGET_API_KEY }}
+          TRIPLET: x64-linux-release
         run: |
           set -euo pipefail
-          unset VCPKG_FORCE_SYSTEM_BINARIES
-          nuget_path="$(vcpkg fetch nuget 2>&1 | grep -E '^/' | tail -n 1)"
-          if [[ -z "${nuget_path}" || ! -f "${nuget_path}" ]]; then
-            echo "Failed to locate NuGet fetched by vcpkg."
-            vcpkg fetch nuget 2>&1 || true
-            exit 1
-          fi
-          mono "${nuget_path}" sources remove -name "GitHubPackages" >/dev/null 2>&1 || true
-          mono "${nuget_path}" sources add \
-            -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            -storepasswordincleartext \
-            -name "GitHubPackages" \
-            -username "${{ github.repository_owner }}" \
-            -password "${NUGET_AUTH_TOKEN}"
-          mono "${nuget_path}" setapikey "${NUGET_AUTH_TOKEN}" \
-            -source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          mkdir -p .cache/vcpkg
+          "${VCPKG_ROOT}/vcpkg" install \
+            --x-install-root="build/${{ matrix.buildtype }}/vcpkg_installed" \
+            --overlay-triplets=cmake/triplets \
+            --triplet="${TRIPLET}" \
+            --host-triplet="${TRIPLET}" \
+            --clean-after-build
 
       - name: Run CMake
-        uses: lukka/run-cmake@v10
+        uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956  # v10.9
         with:
           configurePreset: ${{ matrix.buildtype }}
           buildPreset: ${{ matrix.buildtype }}
           configurePresetAdditionalArgs: "['-DTOGGLE_BIN_FOLDER=ON', '-DOPTIONS_ENABLE_IPO=OFF']"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: linux-${{ matrix.buildtype }}
           path: build/${{ matrix.buildtype }}/bin/
 
-      - name: Verify vcpkg binary cache push
-        if: success() && env.VCPKG_BINARY_CACHE_ACCESS == 'readwrite'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -d '' logs < <(find . -name "vcpkg-manifest-install.log" -print0)
-          if [[ ${#logs[@]} -eq 0 ]]; then
-            echo "No vcpkg manifest logs found." >&2
-            exit 1
-          fi
-          if grep -Eq "to [1-9][0-9]* binary cache\(s\)" -- "${logs[@]}"; then
-            exit 0
-          fi
-          if grep -q "to 0 binary cache(s)" -- "${logs[@]}"; then
-            echo "Binary cache push reported 0 caches and no successful push was found." >&2
-            exit 1
-          fi
-          echo "No binary cache push summary found; assuming no package was built for upload."
+      # Saved even when the job fails, so the next attempt keeps what this one built. A merge
+      # group's caches sit under its own ref, which no later run can restore.
+      - uses: ./.github/actions/vcpkg-cache
+        if: always() && github.event_name != 'merge_group'
+        with:
+          mode: save
+          os: linux

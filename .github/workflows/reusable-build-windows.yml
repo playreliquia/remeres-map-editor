@@ -2,10 +2,15 @@ name: Reusable Windows Build
 
 on:
   workflow_call:
+    inputs:
+      nuget:
+        description: "Access to the org's vcpkg NuGet feed: `readwrite` on trusted events, `read` otherwise."
+        type: string
+        default: read
 
-permissions:
-  contents: read
-  packages: read
+# No permissions block: the job takes its caller's, which ci.yml grants per event (packages:
+# write only on trusted events; actions: write prunes the per-run vcpkg caches). A block here
+# would have to name one packages scope for both callers.
 
 jobs:
   build:
@@ -19,9 +24,12 @@ jobs:
             artifact: windows-cmake-release
     runs-on: windows-2025
     env:
-      VCPKG_BINARY_CACHE_ACCESS: ${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && 'readwrite' || 'read' }}
-      VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && 'readwrite' || 'read' }};nugettimeout,600"
-      VCPKG_NUGET_API_KEY: ${{ secrets.VCPKG_PACKAGES_TOKEN != '' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch') && secrets.VCPKG_PACKAGES_TOKEN || github.token }}
+      # The Actions cache below holds the files source, which every run writes under its own
+      # ref. The org's NuGet feed is shared by every ref and outside the 10 GB cache limit, so
+      # Windows reads it too, and writes it on trusted events only.
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,${{ inputs.nuget == 'readwrite' && 'readwrite' || 'read' }};nugettimeout,600"
+      # GitHub Packages links a package pushed with GITHUB_TOKEN to this repository.
+      VCPKG_NUGET_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       SCCACHE_DIR: ${{ github.workspace }}\.sccache
     steps:
@@ -46,7 +54,7 @@ jobs:
 
       - name: Setup MSBuild.exe
         if: matrix.type == 'Solution'
-        uses: microsoft/setup-msbuild@v3
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57  # v3.0.0
         with:
           vs-prerelease: true
           vs-version: "latest"
@@ -81,14 +89,14 @@ jobs:
           Write-Host "Using v145 platform toolset at $($toolset.FullName)"
 
       - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Export GitHub Actions cache environment variables
-        uses: actions/github-script@v9
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          persist-credentials: false
+
+      - uses: ./.github/actions/vcpkg-cache
+        with:
+          mode: restore
+          os: windows
 
       - name: Get vcpkg baseline
         shell: pwsh
@@ -104,7 +112,7 @@ jobs:
 
       - name: CCache
         if: matrix.type == 'CMake'
-        uses: hendrikmuhs/ccache-action@v1.2.23
+        uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03  # v1.2.23
         with:
           max-size: "1G"
           variant: "sccache"
@@ -115,7 +123,7 @@ jobs:
       - name: Setup NuGet source for GitHub Packages
         shell: pwsh
         env:
-          NUGET_AUTH_TOKEN: ${{ env.VCPKG_NUGET_API_KEY }}
+          NUGET_AUTH_TOKEN: ${{ github.token }}
         run: |
           $feed = "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
           $nuget = (Get-Command nuget.exe -ErrorAction SilentlyContinue).Source
@@ -135,15 +143,34 @@ jobs:
           & $nuget sources list
 
       - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2  # v11.6
         with:
           vcpkgDirectory: ${{ matrix.type == 'Solution' && format('{0}/vcpkg', github.workspace) || '' }}
           vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
 
+      # Its own step, so install time shows apart from the compile, and a compile failure
+      # cannot hide an install success. CMake's configure then finds every package installed.
+      - name: Install vcpkg packages
+        if: matrix.type == 'CMake'
+        shell: pwsh
+        # The windows-release preset's triplets.
+        env:
+          TRIPLET: x64-windows-static-release
+          HOST_TRIPLET: x64-windows
+        run: |
+          New-Item -ItemType Directory -Force -Path .cache/vcpkg | Out-Null
+          & "$env:VCPKG_ROOT/vcpkg.exe" install `
+            --x-install-root=build/windows-release/vcpkg_installed `
+            --overlay-triplets=cmake/triplets `
+            --triplet=$env:TRIPLET `
+            --host-triplet=$env:HOST_TRIPLET `
+            --clean-after-build 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/vcpkg-install.log"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Run CMake
         if: matrix.type == 'CMake'
-        uses: lukka/run-cmake@v10
+        uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956  # v10.9
         with:
           configurePreset: windows-release
           buildPreset: windows-release
@@ -162,40 +189,31 @@ jobs:
             /p:VcpkgRoot="$vcpkgRoot" `
             /p:GITHUB_WORKSPACE="${{ github.workspace }}"
 
+      # vcpkg reports a failed push as a warning and carries on, so a feed the token cannot
+      # write would go unnoticed. Packages linked to another repository answer 403 until the
+      # maintainer grants this repository write access to them.
       - name: Verify vcpkg binary cache push
-        if: matrix.type == 'CMake' && success() && env.VCPKG_BINARY_CACHE_ACCESS == 'readwrite'
+        if: matrix.type == 'CMake' && success() && inputs.nuget == 'readwrite'
         shell: pwsh
         run: |
-          $logs = Get-ChildItem -Path . -Recurse -Filter vcpkg-manifest-install.log -ErrorAction SilentlyContinue
-          if (-not $logs) {
-            Write-Error "No vcpkg manifest logs found."
+          $log = "$env:RUNNER_TEMP/vcpkg-install.log"
+          if (Select-String -Path $log -Pattern "to 0 binary cache\(s\)" -Quiet) {
+            Write-Error "vcpkg submitted packages to 0 binary caches."
             exit 1
           }
-          $pushed = $false
-          foreach ($log in $logs) {
-            if (Select-String -Path $log.FullName -Pattern "to [1-9][0-9]* binary cache\(s\)" -Quiet) {
-              $pushed = $true
-              break
-            }
+          $failed = @(Select-String -Path $log -Pattern "while pushing NuGet package")
+          if ($failed.Count -gt 0) {
+            Write-Output "::warning::$($failed.Count) NuGet push(es) failed; the install step's log names each package."
           }
-          if (-not $pushed) {
-            $zeroPush = $false
-            foreach ($log in $logs) {
-              if (Select-String -Path $log.FullName -Pattern "to 0 binary cache\(s\)" -Quiet) {
-                $zeroPush = $true
-                break
-              }
-            }
-            if ($zeroPush) {
-              Write-Error "Binary cache push reported 0 caches and no successful push was found."
-              exit 1
-            }
-            Write-Host "No binary cache push summary found; assuming no package was built for upload."
+          if (Select-String -Path $log -Pattern "to [1-9][0-9]* binary cache\(s\)" -Quiet) {
+            Write-Output "vcpkg submitted the packages it built to the binary caches."
+          } else {
+            Write-Output "Every package came from a binary cache; nothing to push."
           }
 
       - name: Upload artifacts (CMake)
         if: matrix.type == 'CMake'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ matrix.artifact }}
           path: build/windows-release/bin/
@@ -203,7 +221,7 @@ jobs:
 
       - name: Upload artifacts (Solution)
         if: matrix.type == 'Solution'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ matrix.artifact }}
           path: |
@@ -211,3 +229,11 @@ jobs:
             *.dll
             *.pdb
           if-no-files-found: error
+
+      # Saved even when the job fails, so the next attempt keeps what this one built. A merge
+      # group's caches sit under its own ref, which no later run can restore.
+      - uses: ./.github/actions/vcpkg-cache
+        if: always() && matrix.type == 'CMake' && github.event_name != 'merge_group'
+        with:
+          mode: save
+          os: windows
