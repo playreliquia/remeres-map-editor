@@ -2,27 +2,10 @@ name: CI
 
 on:
   workflow_dispatch:
+  # No path filter: `ci` is the required check, so it must report on every pull request.
+  # The changes job still decides which builds run.
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "src/**"
-      - "source/**"
-      - "cmake/**"
-      - "data/**"
-      - "brushes/**"
-      - "icons/**"
-      - "scripts/**"
-      - "tools/**"
-      - "vcproj/**"
-      - "vcpkg.json"
-      - "CMakeLists.txt"
-      - "CMakePresets.json"
-      - "Dockerfile"
-      - ".dockerignore"
-      - ".clang-format"
-      - ".yamllint.yaml"
-      - ".reviewdog.yml"
-      - ".github/workflows/**"
   merge_group:
   push:
     branches:
@@ -46,6 +29,9 @@ on:
       - ".yamllint.yaml"
       - ".reviewdog.yml"
       - ".github/workflows/**"
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -158,3 +144,40 @@ jobs:
       packages: write
     uses: ./.github/workflows/reusable-build-docker.yml
     secrets: inherit
+
+  # The single required check. It passes only when every job above succeeded or was skipped.
+  ci:
+    needs: [changes, checks, build-linux, build-macos, build-windows, build-docker]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce conventional commit format on PR title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "PR title: ${PR_TITLE}"
+          pattern='^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\(.+\))?(!)?: .+'
+          if ! echo "${PR_TITLE}" | grep -Eq "${pattern}"; then
+            echo "ERROR: PR title does not follow conventional commits."
+            echo "Expected: <type>(<scope>): <description>"
+            echo "Example:  fix(creatures): load lua definitions when directories change"
+            exit 1
+          fi
+          echo "OK"
+
+      - name: Check dependency results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "dependency results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            case "${result}" in
+              success|skipped) ;;
+              *) echo "ERROR: a required job reported '${result}'"; exit 1 ;;
+            esac
+          done
+          echo "OK"
