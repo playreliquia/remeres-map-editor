@@ -3,8 +3,8 @@
 - Before committing or pushing, always check `git status --short --branch` and `git branch -vv`.
 - Never push directly to `origin/main`, including from the local `main` branch. Changes targeting `main` must go through a pull request.
 - A working branch must not track `origin/main` unless the current branch is exactly `main`.
-- Create new working branches under the GitHub username prefix `jordanhoare/`, unless the user explicitly asks for another name.
-- For feature/fix branches, the upstream must point to the same remote branch name, for example `jordanhoare/example -> origin/jordanhoare/example`.
+- Create new working branches under the GitHub username prefix `<username>/`, unless the user explicitly asks for another name.
+- For feature/fix branches, the upstream must point to the same remote branch name, for example `<username>/example -> origin/<username>/example`.
 - If a branch is tracking the wrong upstream, stop and fix it before committing or pushing:
   - `git branch --unset-upstream <branch>`
   - then push explicitly with `git push -u origin <branch>` only when the branch should be published.
@@ -57,7 +57,7 @@
 
 ### Issue tracker
 
-Issues live in GitHub Issues on `playreliquia/remeres-map-editor`, managed with `gh`. See `docs/agents/issue-tracker.md`.
+Issues live in this repo's GitHub Issues, managed with `gh`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
