@@ -50,7 +50,8 @@ runs:
           echo "This run saved no cache under ${KEY}; keeping the older ones."
           exit 0
         fi
-        grep -vxF -- "${KEY}" <<<"${keys}" | while read -r old; do
+        # grep exits 1 when this run's key is the only one.
+        { grep -vxF -- "${KEY}" <<<"${keys}" || true; } | while read -r old; do
           [[ -n "${old}" ]] || continue
           gh cache delete "${old}" --ref "${REF}" || echo "::warning::Could not delete cache ${old}"
         done
