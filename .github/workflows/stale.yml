@@ -1,0 +1,43 @@
+name: Stale
+
+"on":
+  workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *" # daily at 01:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          # Renovate's pull requests rebase themselves; a wayfinder map is an index that stays
+          # open for the life of its effort.
+          exempt-pr-labels: dependencies
+          exempt-issue-labels: wayfinder:map
+          delete-branch: false
+          stale-issue-message: >
+            this issue has had no activity for 60 days and is now marked stale.
+            remove the stale label or comment to keep it open, otherwise it will
+            be closed in 14 days.
+          stale-pr-message: >
+            this pull request has had no activity for 60 days and is now marked
+            stale. remove the stale label or comment to keep it open, otherwise
+            it will be closed in 14 days.
+          close-issue-message: >
+            closing this issue after 14 days of inactivity since being marked
+            stale. reopen if it is still relevant.
+          close-pr-message: >
+            closing this pull request after 14 days of inactivity since being
+            marked stale. reopen if it is still relevant.
