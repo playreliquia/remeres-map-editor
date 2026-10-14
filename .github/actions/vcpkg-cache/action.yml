@@ -32,8 +32,10 @@ runs:
 
     # Each save holds every package of the ones before it, so only the newest per ref is worth
     # keeping. Without the prune, per-run keys fill the 10 GB limit and evict main's cache.
-    # A fork's read-only token cannot delete caches; its PR's caches go when clean-cache.yaml
-    # runs on close.
+    # It deletes only keys under this manifest hash that were created before this run attempt
+    # started, so it never removes a newer run's save; a changed hash leaves the old keys to
+    # age out. A fork's read-only token cannot delete caches; clean-cache.yaml removes its
+    # PR's caches on close.
     - name: Prune older vcpkg packages
       if: inputs.mode == 'save'
       shell: bash
@@ -41,17 +43,20 @@ runs:
         GH_TOKEN: ${{ github.token }}
         GH_REPO: ${{ github.repository }}
         REF: ${{ github.ref }}
-        PREFIX: vcpkg-${{ inputs.os }}-
+        RUN_ID: ${{ github.run_id }}
+        PREFIX: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-
         KEY: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
       run: |
         set -euo pipefail
-        keys=$(gh cache list --ref "${REF}" --key "${PREFIX}" --limit 100 --json key --jq '.[].key')
-        if ! grep -qxF -- "${KEY}" <<<"${keys}"; then
+        caches=$(gh cache list --ref "${REF}" --key "${PREFIX}" --limit 100 --json key,createdAt)
+        if ! jq -e --arg key "${KEY}" 'any(.[]; .key == $key)' <<<"${caches}" >/dev/null; then
           echo "This run saved no cache under ${KEY}; keeping the older ones."
           exit 0
         fi
-        # grep exits 1 when this run's key is the only one.
-        { grep -vxF -- "${KEY}" <<<"${keys}" || true; } | while read -r old; do
-          [[ -n "${old}" ]] || continue
+        started=$(gh api "repos/${GH_REPO}/actions/runs/${RUN_ID}" --jq .run_started_at)
+        jq -r --arg key "${KEY}" --arg started "${started}" \
+          'def t: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+           .[] | select(.key != $key and (.createdAt | t) < ($started | t)) | .key' \
+          <<<"${caches}" | while read -r old; do
           gh cache delete "${old}" --ref "${REF}" || echo "::warning::Could not delete cache ${old}"
         done
