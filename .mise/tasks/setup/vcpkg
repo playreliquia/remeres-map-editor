@@ -3,7 +3,7 @@
 #MISE hide=true
 set -euo pipefail
 
-: "${VCPKG_ROOT:?set in mise.toml}"
+: "${VCPKG_ROOT:?set in .mise/config.toml}"
 baseline=$(grep -o '"builtin-baseline": *"[0-9a-f]*"' vcpkg.json | grep -o '[0-9a-f]\{40\}')
 if [[ ! -d "${VCPKG_ROOT}/.git" ]]; then
   git clone https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"

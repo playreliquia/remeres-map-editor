@@ -87,7 +87,6 @@ url_api = "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378333
 
 [[tools.markdownlint-cli2]]
 version = "0.23.3"
-aube = { path = ".mise/locks/markdownlint-cli2/0.23.3", digest = "sha256:39523bb981360d43f75c10a114ee091e42ff45a76d3c2c666a283ff017bd4926" }
 backend = "npm:markdownlint-cli2"
 specifiers = ["0.23.3"]
 
@@ -128,17 +127,28 @@ url = "https://nodejs.org/dist/v24.21.0/node-v24.21.0-darwin-arm64.tar.gz"
 checksum = "sha256:158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541"
 url = "https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-x64.zip"
 
-[[tools."pipx:pre-commit"]]
-version = "4.6.2"
-backend = "pipx:pre-commit"
-specifiers = ["4.6.2"]
-uv = { path = ".mise/locks/pipx-pre-commit/4.6.2", digest = "sha256:087fef73ea17bfa36dbf4128749a17edcdb0ef97f40a9ca59ca7197f73d94af2" }
+[[tools.prek]]
+version = "0.5.5"
+backend = "aqua:j178/prek"
+specifiers = ["0.5.5"]
 
-[[tools."pipx:yamllint"]]
-version = "1.38.0"
-backend = "pipx:yamllint"
-specifiers = ["1.38.0"]
-uv = { path = ".mise/locks/pipx-yamllint/1.38.0", digest = "sha256:62d8d4bc2ecc17e8240b602957b66b252000517f03b69fe7fa4a82c601d246ae" }
+[tools.prek."platforms.linux-x64"]
+checksum = "sha256:5470e4aa0fc0ad9d3de7dfaf088fb746d59c2eda3b173c06418e7c8861a520eb"
+url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684555"
+provenance = "github-attestations"
+
+[tools.prek."platforms.macos-arm64"]
+checksum = "sha256:e4bc3132023b50020e62b073bc3147082828bf250d8b9282850c6f2bed5471b6"
+url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684483"
+provenance = "github-attestations"
+
+[tools.prek."platforms.windows-x64"]
+checksum = "sha256:6e52e1723b1b753b977be632a150d5516862471b29c14ad8e7d71685f07769b4"
+url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684549"
+provenance = "github-attestations"
 
 [[tools.sccache]]
 version = "0.18.0"
@@ -216,29 +226,6 @@ url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323110"
 [tools.taplo."platforms.windows-x64"]
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-windows-x86_64.zip"
 url_api = "https://api.github.com/repos/tamasfe/taplo/releases/assets/257323062"
-
-[[tools.uv]]
-version = "0.12.24"
-backend = "aqua:astral-sh/uv"
-specifiers = ["0.12.24"]
-
-[tools.uv."platforms.linux-x64"]
-checksum = "sha256:b4dfaef47d491a7296981f8374a4595f55dbf84e8937c8ecd2983574d8bb3da6"
-url = "https://github.com/astral-sh/uv/releases/download/0.12.24/uv-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/astral-sh/uv/releases/assets/622873043"
-provenance = "github-attestations"
-
-[tools.uv."platforms.macos-arm64"]
-checksum = "sha256:0c4346de7abdb49495b393b9ec809fe387aa43e586be20fecb972216c1e71732"
-url = "https://github.com/astral-sh/uv/releases/download/0.12.24/uv-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/astral-sh/uv/releases/assets/622872807"
-provenance = "github-attestations"
-
-[tools.uv."platforms.windows-x64"]
-checksum = "sha256:7c38608c8a18ee137d748a1773053b07ec8f3a30fab49aebaa6f4e4efeceb019"
-url = "https://github.com/astral-sh/uv/releases/download/0.12.24/uv-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/astral-sh/uv/releases/assets/622873038"
-provenance = "github-attestations"
 
 [[tools.zizmor]]
 version = "1.30.1"

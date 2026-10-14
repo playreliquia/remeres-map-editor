@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Run the pre-commit hooks over every file changed since main"
+#MISE description="Run the prek hooks over every file changed since main"
 #USAGE arg "[path]..." help="Limit the run to these paths"
 # Only the files that differ from LINT_BASE, committed or not. LINT_BASE defaults to the
 # merge-base with origin/main.
@@ -13,4 +13,4 @@ if [[ -z "${files}" ]]; then
   exit 0
 fi
 # xargs -r is GNU-only; the emptiness check above covers it.
-printf '%s\n' "${files}" | tr '\n' '\0' | xargs -0 pre-commit run --show-diff-on-failure --files
+printf '%s\n' "${files}" | tr '\n' '\0' | xargs -0 prek run --show-diff-on-failure --files

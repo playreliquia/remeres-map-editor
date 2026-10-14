@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 #MISE description="Configure and build the debug editor"
-#MISE hide=true
 set -euo pipefail
 
 # shellcheck source=.mise/lib/preset.sh

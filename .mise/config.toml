@@ -4,6 +4,14 @@
 
 # An older mise writes mise.lock entries that a newer `mise install --locked` rejects.
 min_version = "2026.9.12"
+# A config under .mise/ would get its lockfile at .mise/mise.lock. Declaring the repository a
+# monorepo whose only config root is itself keeps the lockfile at <root>/mise.lock, as in
+# reliquia. `mise tasks` lists the tasks as //:<name>; `mise run <name>` still works.
+monorepo_root = true
+
+[monorepo]
+config_roots = ["."]
+lockfile = true
 
 # Every version is exact so a local shell, the git hooks and ci resolve the same binaries
 # (mise.lock carries the checksums).
@@ -14,12 +22,9 @@ ninja = "1.13.2"
 # Compiler caches: ccache for gcc and clang, sccache for MSVC (CMakePresets.json picks one per OS).
 ccache = { version = "4.14.1", os = ["linux", "macos"] }
 sccache = { version = "0.18.0", os = ["windows"] }
-# Only the backend the pipx: tools install through; the editor has no Python project.
-uv = "0.12.24"
-# pipx, not aqua: the aqua package has no Windows build, so it could not be locked for windows-x64.
-"pipx:pre-commit" = "4.6.2"
-# Linters the pre-commit hooks run over the fork's own tooling files, never upstream C++.
-"pipx:yamllint" = "1.38.0"
+# Runs the hooks in .pre-commit-config.yaml; a single binary, so the toolset needs no Python.
+prek = "0.5.5"
+# Linters the hooks run over the fork's own tooling files, never upstream C++.
 actionlint = "1.7.12"
 zizmor = "1.30.1"
 shellcheck = "0.11.0"
@@ -31,9 +36,12 @@ node = "24.21.0"
 markdownlint-cli2 = "0.23.3"
 
 [settings]
-lockfile = true
 # The platforms the editor builds on; mise.lock covers each of them.
 lockfile_platforms = ["linux-x64", "macos-arm64", "windows-x64"]
+# Install npm tools with the npm CLI. mise's built-in installer also records each npm tool's
+# dependency tree in a sidecar under .mise/locks/ that mise.lock points to; with this setting
+# mise.lock alone pins the tools, as in reliquia.
+npm.shell_out = true
 
 [env]
 VCPKG_ROOT = "{{config_root}}/.vcpkg"
@@ -50,7 +58,7 @@ description = "Install the pre-commit and pre-push git hooks"
 shell = "bash -c"
 run = """
 if [[ -f .pre-commit-config.yaml ]]; then
-  pre-commit install --hook-type pre-commit --hook-type pre-push
+  prek install --hook-type pre-commit --hook-type pre-push
 else
   echo "no .pre-commit-config.yaml yet; skipping the git hooks"
 fi

@@ -1,5 +1,5 @@
-# Loaded on top of mise.toml when MISE_ENV=ci. Run `MISE_ENV=ci mise run <task>` to reproduce a
-# ci job's environment locally.
+# Loaded on top of .mise/config.toml when MISE_ENV=ci. Run `MISE_ENV=ci mise run <task>` to
+# reproduce a ci job's environment locally.
 
 [settings]
 # The workflow installs the tools a job needs; a task must use those and never install more.
