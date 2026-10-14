@@ -5,11 +5,13 @@ on:
 
 permissions:
   contents: read
-  # Pruning the per-run vcpkg caches.
-  actions: write
 
 jobs:
   build:
+    permissions:
+      contents: read
+      # Pruning the per-run vcpkg caches.
+      actions: write
     name: Compile (${{ matrix.buildtype }})
     strategy:
       fail-fast: false

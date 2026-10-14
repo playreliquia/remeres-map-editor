@@ -2,12 +2,15 @@ name: Reusable Windows Build
 
 on:
   workflow_call:
+    inputs:
+      nuget:
+        description: "Access to the org's vcpkg NuGet feed: `readwrite` on trusted events, `read` otherwise."
+        type: string
+        default: read
 
-permissions:
-  contents: read
-  # The vcpkg NuGet feed on GitHub Packages, and pruning the per-run vcpkg caches.
-  packages: write
-  actions: write
+# No permissions block: the job takes its caller's, which ci.yml grants per event (packages:
+# write only on trusted events; actions: write prunes the per-run vcpkg caches). A block here
+# would have to name one packages scope for both callers.
 
 jobs:
   build:
@@ -21,9 +24,10 @@ jobs:
             artifact: windows-cmake-release
     runs-on: windows-2025
     env:
-      # The Actions cache below holds the files source. The org's NuGet feed is shared by every
-      # ref and outside the 10 GB cache limit, so Windows reads and writes it too.
-      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,readwrite;nugettimeout,600"
+      # The Actions cache below holds the files source, which every run writes under its own
+      # ref. The org's NuGet feed is shared by every ref and outside the 10 GB cache limit, so
+      # Windows reads it too, and writes it on trusted events only.
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,${{ inputs.nuget == 'readwrite' && 'readwrite' || 'read' }};nugettimeout,600"
       # GitHub Packages links a package pushed with GITHUB_TOKEN to this repository.
       VCPKG_NUGET_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -161,7 +165,7 @@ jobs:
             --overlay-triplets=cmake/triplets `
             --triplet=$env:TRIPLET `
             --host-triplet=$env:HOST_TRIPLET `
-            --clean-after-build
+            --clean-after-build 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/vcpkg-install.log"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run CMake
@@ -184,6 +188,28 @@ jobs:
             /p:VcpkgEnableManifest=true `
             /p:VcpkgRoot="$vcpkgRoot" `
             /p:GITHUB_WORKSPACE="${{ github.workspace }}"
+
+      # vcpkg reports a failed push as a warning and carries on, so a feed the token cannot
+      # write would go unnoticed. Packages linked to another repository answer 403 until the
+      # maintainer grants this repository write access to them.
+      - name: Verify vcpkg binary cache push
+        if: matrix.type == 'CMake' && success() && inputs.nuget == 'readwrite'
+        shell: pwsh
+        run: |
+          $log = "$env:RUNNER_TEMP/vcpkg-install.log"
+          if (Select-String -Path $log -Pattern "to 0 binary cache\(s\)" -Quiet) {
+            Write-Error "vcpkg submitted packages to 0 binary caches."
+            exit 1
+          }
+          $failed = @(Select-String -Path $log -Pattern "while pushing NuGet package")
+          if ($failed.Count -gt 0) {
+            Write-Output "::warning::$($failed.Count) NuGet push(es) failed; the install step's log names each package."
+          }
+          if (Select-String -Path $log -Pattern "to [1-9][0-9]* binary cache\(s\)" -Quiet) {
+            Write-Output "vcpkg submitted the packages it built to the binary caches."
+          } else {
+            Write-Output "Every package came from a binary cache; nothing to push."
+          }
 
       - name: Upload artifacts (CMake)
         if: matrix.type == 'CMake'
