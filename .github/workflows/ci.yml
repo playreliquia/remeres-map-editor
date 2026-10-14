@@ -108,7 +108,6 @@ jobs:
       checks: write
       pull-requests: read
     uses: ./.github/workflows/reusable-checks.yml
-    secrets: inherit
 
   build-linux:
     name: Build - Linux

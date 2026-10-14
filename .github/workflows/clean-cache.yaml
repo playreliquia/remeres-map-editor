@@ -18,19 +18,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           BRANCH: refs/pull/${{ github.event.pull_request.number }}/merge
-        run: |
-          if gh extension list | grep -q "actions/gh-actions-cache"; then
-            gh extension upgrade actions/gh-actions-cache
-          else
-            gh extension install actions/gh-actions-cache
-          fi
-
-          echo "Fetching cache keys"
-          cacheKeysForPR="$(gh actions-cache list -R "${REPO}" -B "${BRANCH}" -L 100 | cut -f 1)"
-
-          set +e
-          echo "Deleting caches..."
-          for cacheKey in ${cacheKeysForPR}; do
-            gh actions-cache delete "${cacheKey}" -R "${REPO}" -B "${BRANCH}" --confirm
-          done
-          echo "Done"
+        # gh's built-in cache commands. The gh-actions-cache extension listed no
+        # keys, so closed PRs kept their caches, per-run vcpkg keys included.
+        run: gh cache delete --all --ref "${BRANCH}" --repo "${REPO}" --succeed-on-no-caches
