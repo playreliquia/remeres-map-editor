@@ -52,3 +52,17 @@
 - Do not post any PR comments/reviews automatically.
 - Only post PR comments/reviews when the user explicitly asks.
 - All PR comments/reviews posted by agents must be in English.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues on `playreliquia/remeres-map-editor`, managed with `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use the default label names: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human` and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+The repo uses a single context. The prose framing is in `docs/internal/context.md`, the glossary in `docs/internal/glossary.md` and ADRs under `docs/internal/adr/`. See `docs/agents/domain.md`.
