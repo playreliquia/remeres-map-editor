@@ -91,6 +91,10 @@ namespace mcp {
 	// which is what makes quest content legible and editable.
 	json itemToJson(const Item* item, int depth = 0);
 	Item* buildItem(const json &spec);
+	// Writes the spec's actionId, uniqueId and text onto an item. buildItem and
+	// tile_edit setItems share it, so an edit in place and a fresh item accept
+	// the same values.
+	void applyItemAttributes(Item* item, const json &spec);
 	// The `addItems`/`ground` entry shape, reused across tool schemas.
 	json itemSpecSchema();
 
