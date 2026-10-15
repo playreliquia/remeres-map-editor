@@ -258,9 +258,13 @@ bool Application::OnInit() {
 			long ret = g_gui.PopupDialog("Editor Crashed", message, wxYES | wxNO);
 
 			if (ret == wxID_YES) {
-				// Recover if the user so wishes
-				for (const std::string &backup : backups) {
-					if (backup.empty()) {
+				// Recover if the user so wishes. The sidecar writer renames an unchanged
+				// sidecar's ~ back during the save, so a listed ~ can be gone, and then
+				// its file is the original and must stay.
+				bool map_recovered = false;
+				for (size_t index = 0; index < backups.size(); ++index) {
+					const std::string &backup = backups[index];
+					if (backup.empty() || !std::filesystem::exists(utf8Path(backup), ec)) {
 						continue;
 					}
 					const std::filesystem::path target = utf8Path(std::string_view(backup).substr(0, backup.size() - 1));
@@ -268,11 +272,13 @@ bool Application::OnInit() {
 					std::filesystem::rename(utf8Path(backup), target, ec);
 					if (ec) {
 						spdlog::error("Could not recover {}: {}", backup, ec.message());
+					} else if (index == 0) {
+						map_recovered = true;
 					}
 				}
 
 				// Load the map
-				if (!backups.front().empty()) {
+				if (map_recovered) {
 					const std::string &map_backup = backups.front();
 					g_gui.LoadMap(wxstr(map_backup.substr(0, map_backup.size() - 1)));
 					return true;

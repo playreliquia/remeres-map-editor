@@ -5873,7 +5873,7 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 	// The caller rolls every file back, so the .otbm never disagrees with its sidecars.
 	if (!sidecarSaveReport_.failed.empty()) {
 		const SidecarFailure &failure = sidecarSaveReport_.failed.front();
-		error("Could not write %s: %s", failure.file.c_str(), failure.error.c_str());
+		error("%s: %s", failure.file.c_str(), failure.error.c_str());
 		return false;
 	}
 	return true;

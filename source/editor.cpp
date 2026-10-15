@@ -305,31 +305,53 @@ namespace {
 		return nstr(g_gui.GetLocalDataDirectory()) + ".saving.txt";
 	}
 
-	// .saving.txt holds one line per file in files order: the ~ copy that startup
-	// recovery renames back over the file, or an empty line for none.
-	void writeSaveRunFile(const std::vector<std::string> &lines) {
+	// The ~ copies an earlier .saving.txt lists: a failed restore that no restart
+	// has recovered yet.
+	std::vector<std::string> readSaveRunFile() {
+		std::vector<std::string> backups;
+		std::ifstream f(utf8Path(saveRunFilePath()), std::ios::in);
+		std::string line;
+		while (std::getline(f, line)) {
+			if (!line.empty()) {
+				backups.push_back(line);
+			}
+		}
+		return backups;
+	}
+
+	// .saving.txt holds one line per file in files order, the ~ copy that startup
+	// recovery renames back over the file or an empty line for none, then the
+	// earlier entries still on disk. Recovery deletes each listed file before
+	// renaming its ~ back, so only a ~ on disk is listed, and with none the file
+	// is removed.
+	void writeSaveRunFile(const std::vector<SaveFile> &files, const std::vector<std::string> &earlier, bool listThisSave) {
+		std::vector<std::string> lines;
+		bool listed = false;
+		for (const SaveFile &file : files) {
+			std::error_code ec;
+			const bool remains = listThisSave && file.movedAside && fs::exists(utf8Path(file.backup), ec);
+			lines.push_back(remains ? file.backup : std::string());
+			listed = listed || remains;
+		}
+		for (const std::string &backup : earlier) {
+			const bool madeByThisSave = std::ranges::any_of(files, [&backup](const SaveFile &file) {
+				return file.movedAside && file.backup == backup;
+			});
+			std::error_code ec;
+			if (!madeByThisSave && fs::exists(utf8Path(backup), ec)) {
+				lines.push_back(backup);
+				listed = true;
+			}
+		}
+
+		if (!listed) {
+			std::error_code ec;
+			fs::remove(utf8Path(saveRunFilePath()), ec);
+			return;
+		}
 		std::ofstream f(utf8Path(saveRunFilePath()), std::ios::trunc | std::ios::out);
 		for (const std::string &line : lines) {
 			f << line << std::endl;
-		}
-	}
-
-	// After a rollback .saving.txt lists only the ~ copies still on disk, since
-	// startup recovery deletes each listed file before renaming its ~ back.
-	void keepUnrestoredInSaveRunFile(const std::vector<SaveFile> &files) {
-		std::vector<std::string> lines;
-		bool unrestored = false;
-		for (const SaveFile &file : files) {
-			std::error_code ec;
-			const bool remains = file.movedAside && fs::exists(utf8Path(file.backup), ec);
-			lines.push_back(remains ? file.backup : std::string());
-			unrestored = unrestored || remains;
-		}
-		if (unrestored) {
-			writeSaveRunFile(lines);
-		} else {
-			std::error_code ec;
-			fs::remove(utf8Path(saveRunFilePath()), ec);
 		}
 	}
 }
@@ -372,6 +394,15 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	const bool keepBackups = makeBackup && !save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP);
 	const std::string backup_path = map_path + "backups/";
 	const std::string timestamp = backupTimestamp();
+	const std::vector<std::string> earlierUnrestored = readSaveRunFile();
+
+	// Moves a ~ copy into backups/ under a dated name and returns why it could not.
+	const auto moveToBackups = [this, &backup_path, &timestamp](const SaveFile &file) -> std::string {
+		if (!ensureBackupDirectoryExists(backup_path)) {
+			return "could not create " + backup_path;
+		}
+		return moveIntoBackups(file, backup_path, timestamp);
+	};
 
 	// The files this save replaces, in the order .saving.txt lists them.
 	std::vector<SaveFile> files;
@@ -424,14 +455,12 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 		if (fs::exists(utf8Path(file.backup), ec)) {
 			if (!keepBackups) {
 				if (removeSaveFile(file.backup)) {
-					spdlog::info("Deleted {}, left by an earlier save", file.backup);
+					spdlog::warn("Deleted {}, left by an earlier save", file.backup);
 				} else {
 					reason = "could not delete the old " + file.backup;
 				}
-			} else if (!ensureBackupDirectoryExists(backup_path)) {
-				reason = "could not create " + backup_path + " for the old " + file.backup;
 			} else {
-				reason = moveIntoBackups(file, backup_path, timestamp);
+				reason = moveToBackups(file);
 			}
 		}
 
@@ -447,10 +476,10 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 			continue;
 		}
 
-		result.error = "Could not save " + file.name + ": " + reason;
+		result.error = file.name + ": " + reason;
 		result.failed.push_back({ file.name, reason });
 		rollBack();
-		keepUnrestoredInSaveRunFile(files);
+		writeSaveRunFile(files, earlierUnrestored, true);
 		if (showdialog) {
 			g_gui.PopupDialog("Error", wxstr(result.error), wxOK);
 		}
@@ -458,13 +487,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	}
 
 	// Save the map
-	{
-		std::vector<std::string> lines;
-		for (const SaveFile &file : files) {
-			lines.push_back(file.movedAside ? file.backup : std::string());
-		}
-		writeSaveRunFile(lines);
-	}
+	writeSaveRunFile(files, earlierUnrestored, true);
 
 	// Set up the Map paths
 	wxFileName fn = wxstr(savefile);
@@ -486,7 +509,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 		for (const MapSaveResult::FailedFile &failure : result.failed) {
 			spdlog::error("Could not roll back {}: {}", failure.file, failure.error);
 		}
-		keepUnrestoredInSaveRunFile(files);
+		writeSaveRunFile(files, earlierUnrestored, true);
 		if (showdialog) {
 			g_gui.DestroyLoadBar();
 		}
@@ -509,7 +532,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 		}
 
 		rollBack();
-		keepUnrestoredInSaveRunFile(files);
+		writeSaveRunFile(files, earlierUnrestored, true);
 
 		if (showdialog) {
 			g_gui.PopupDialog("Error", wxstr(result.error), wxOK);
@@ -518,22 +541,18 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	}
 	result.sidecars = mapsaver.getLastSidecarSaveReport().written;
 
-	// Remove temporary save runfile
-	{
-		std::error_code ec;
-		fs::remove(utf8Path(saveRunFilePath()), ec);
-	}
+	// Drop this save's lines from the temporary save runfile
+	writeSaveRunFile(files, earlierUnrestored, false);
 
 	if (keepBackups) {
 		// Move temporary backups to their proper files. A ~ that cannot be moved
 		// stays, and the next save that keeps backups moves it.
-		const bool directoryReady = ensureBackupDirectoryExists(backup_path);
 		for (const SaveFile &file : files) {
 			std::error_code ec;
 			if (!file.movedAside || !fs::exists(utf8Path(file.backup), ec)) {
 				continue;
 			}
-			const std::string failure = directoryReady ? moveIntoBackups(file, backup_path, timestamp) : "could not create " + backup_path;
+			const std::string failure = moveToBackups(file);
 			if (!failure.empty()) {
 				spdlog::warn("Keeping {} until the next save: {}", file.backup, failure);
 			}
@@ -2138,8 +2157,8 @@ void Editor::SendNodeRequests() {
 	}
 }
 
-// Reports failure instead of throwing: it runs after the map is written, and a
-// throw would skip the ~ bookkeeping.
+// Reports failure instead of throwing: Editor::saveMap calls it while ~ copies are
+// on disk, and a throw would skip the rollback and the ~ bookkeeping.
 bool Editor::ensureBackupDirectoryExists(const std::string &backup_path) {
 	const fs::path directory = utf8Path(backup_path);
 	std::error_code ec;
