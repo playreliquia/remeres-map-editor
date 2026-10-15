@@ -94,9 +94,10 @@ jobs:
           RENOVATE_PLATFORM: github
           # The one postUpgradeTasks command, `mise lock` over one named mise tool. Tasks run
           # without a shell, so safe mode comes from the environment Renovate gives every child.
-          # Safe mode ignores the project's [settings], so npm.shell_out comes from here too;
-          # without it `mise lock` records an aube dependency graph that ci's install rejects.
           RENOVATE_ALLOWED_COMMANDS: '["^mise lock [A-Za-z0-9:@/._-]+$"]'
+          # Safe mode ignores the project's [settings], so npm.shell_out comes from here too;
+          # without it `mise lock` points mise.lock at a sidecar under .mise/locks/ that
+          # `mise install --locked` rejects.
           RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_SAFE":"1","MISE_NPM_SHELL_OUT":"1"}'
           # The App's bot user; must match the token's identity or Renovate treats its
           # own branches as edited by someone else.
