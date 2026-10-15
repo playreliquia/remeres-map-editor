@@ -162,9 +162,11 @@
     {
       // A release sits three days before Renovate proposes it, which outlasts most takedowns
       // of a compromised or broken release. A datasource without release timestamps (git
-      // refs, some tags) passes, or those updates would never arrive.
-      description: "Every version update waits three days",
-      matchUpdateTypes: ["patch", "minor", "major"],
+      // refs, some tags) passes, or those updates would never arrive. Digests wait too: an
+      // automerged action digest is new code like any release, and the vcpkg baseline's
+      // git-refs digests have no timestamp, so they still pass.
+      description: "Every version and digest update waits three days",
+      matchUpdateTypes: ["patch", "minor", "major", "digest"],
       minimumReleaseAge: "3 days",
       minimumReleaseAgeBehaviour: "timestamp-optional",
     },
