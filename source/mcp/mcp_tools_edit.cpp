@@ -62,6 +62,58 @@ namespace mcp {
 			set("noLogout", TILESTATE_NOLOGOUT);
 		}
 
+		// Edits items already on the tile without moving them, so the stack
+		// order a client draws stays as it was. Every edit is resolved before
+		// any is written; a throw still discards the whole batch either way.
+		void applySetItems(Tile* tile, const json &edits, const Position &position) {
+			if (!edits.is_array()) {
+				throw McpError("setItems must be an array of item edits");
+			}
+
+			std::vector<std::pair<Item*, const json*>> targets;
+			for (const json &edit : edits) {
+				if (!edit.is_object() || !edit.contains("id") || !edit["id"].is_number_integer()) {
+					throw McpError("every setItems entry needs an integer id");
+				}
+				if (!edit.contains("actionId") && !edit.contains("uniqueId") && !edit.contains("text")) {
+					throw McpError("every setItems entry needs actionId, uniqueId or text");
+				}
+
+				const int id = edit["id"].get<int>();
+				std::vector<Item*> matches;
+				if (tile->ground && tile->ground->getID() == id) {
+					matches.push_back(tile->ground);
+				}
+				for (Item* item : tile->items) {
+					if (item->getID() == id) {
+						matches.push_back(item);
+					}
+				}
+
+				const std::string where = fmt::format("{},{},{}", position.x, position.y, position.z);
+				if (matches.empty()) {
+					throw McpError(fmt::format("no item {} on the tile at {}", id, where));
+				}
+
+				size_t index = 0;
+				if (edit.contains("index")) {
+					const int requested = edit["index"].get<int>();
+					if (requested < 0 || static_cast<size_t>(requested) >= matches.size()) {
+						throw McpError(fmt::format("index {} is out of range: the tile at {} has {} of item {}", requested, where, matches.size(), id));
+					}
+					index = static_cast<size_t>(requested);
+				} else if (matches.size() > 1) {
+					throw McpError(fmt::format("the tile at {} has {} of item {}; pass index to pick one", where, matches.size(), id));
+				}
+
+				targets.emplace_back(matches[index], &edit);
+			}
+
+			for (const auto &[item, edit] : targets) {
+				applyItemAttributes(item, *edit);
+			}
+		}
+
 		json toolTileEdit(const json &params) {
 			Editor* editor = requireEditor();
 			Map &map = editor->getMap();
@@ -87,6 +139,13 @@ namespace mcp {
 
 				const Position position = parsePosition(entry["position"], "position");
 				Tile* tile = batch.edit(position);
+
+				// Before every other edit in the entry, so setItems matches the
+				// items the caller read with tile_get rather than ones this
+				// entry adds.
+				if (entry.contains("setItems")) {
+					applySetItems(tile, entry["setItems"], position);
+				}
 
 				if (entry.value("clearItems", false)) {
 					while (!tile->items.empty()) {
@@ -365,9 +424,15 @@ namespace mcp {
 				{ "properties", json { { "protectionZone", json { { "type", "boolean" } } }, { "pvpZone", json { { "type", "boolean" } } }, { "noPvp", json { { "type", "boolean" } } }, { "noLogout", json { { "type", "boolean" } } } } }
 			};
 
+			json setItem {
+				{ "type", "object" },
+				{ "properties", json { { "id", json { { "type", "integer" }, { "description", "item id to match on the ground or in the stack" } } }, { "index", json { { "type", "integer" }, { "description", "0-based, picks one when the id appears more than once; ground first, then the stack bottom to top as tile_get lists it" } } }, { "actionId", json { { "type", "integer" } } }, { "uniqueId", json { { "type", "integer" } } }, { "text", json { { "type", "string" } } } } },
+				{ "required", json::array({ "id" }) }
+			};
+
 			json entry {
 				{ "type", "object" },
-				{ "properties", json { { "position", positionSchema() }, { "ground", json { { "description", "an item id, an item object (see addItems), or null to clear the ground" } } }, { "addItems", json { { "type", "array" }, { "description", "items to place, each an id or an object" }, { "items", itemSpecSchema() } } }, { "removeItemIds", json { { "type", "array" }, { "items", json { { "type", "integer" } } } } }, { "clearItems", json { { "type", "boolean" }, { "description", "remove every item, keeping the ground" } } }, { "flags", flags }, { "houseId", json { { "type", "integer" }, { "description", "0 detaches the tile from its house" } } }, { "zones", json { { "type", "array" }, { "items", json { { "type", "integer" } } }, { "description", "replaces the tile zone set" } } } } },
+				{ "properties", json { { "position", positionSchema() }, { "ground", json { { "description", "an item id, an item object (see addItems), or null to clear the ground" } } }, { "addItems", json { { "type", "array" }, { "description", "items to place, each an id or an object" }, { "items", itemSpecSchema() } } }, { "removeItemIds", json { { "type", "array" }, { "items", json { { "type", "integer" } } } } }, { "setItems", json { { "type", "array" }, { "description", "edit items already on the tile in place, keeping the stack order; applied before every other edit in this entry" }, { "items", setItem } } }, { "clearItems", json { { "type", "boolean" }, { "description", "remove every item, keeping the ground" } } }, { "flags", flags }, { "houseId", json { { "type", "integer" }, { "description", "0 detaches the tile from its house" } } }, { "zones", json { { "type", "array" }, { "items", json { { "type", "integer" } } }, { "description", "replaces the tile zone set" } } } } },
 				{ "required", json::array({ "position" }) }
 			};
 
@@ -383,7 +448,8 @@ namespace mcp {
 	void registerEditTools(ToolRegistry &registry) {
 		registry.add({ "tile_edit",
 					   "Edit many tiles in one undoable step. Each entry needs a position; everything else is optional: "
-					   "ground (item id, or null to clear), addItems, removeItemIds, clearItems, flags, houseId (0 detaches), zones. "
+					   "ground (item id, or null to clear), addItems, removeItemIds, clearItems, flags, houseId (0 detaches), zones, "
+					   "and setItems, which edits the actionId, uniqueId or text of an item already on the tile without moving it. "
 					   "Prefer one call with many tiles over many small calls - the whole batch becomes a single Ctrl+Z.",
 					   tileEditSchema(),
 					   true,

@@ -132,6 +132,18 @@ namespace mcp {
 		return out;
 	}
 
+	void applyItemAttributes(Item* item, const json &spec) {
+		if (spec.contains("actionId")) {
+			item->setActionID(static_cast<uint16_t>(spec["actionId"].get<int>()));
+		}
+		if (spec.contains("uniqueId")) {
+			item->setUniqueID(static_cast<uint16_t>(spec["uniqueId"].get<int>()));
+		}
+		if (spec.contains("text")) {
+			item->setText(spec["text"].get<std::string>());
+		}
+	}
+
 	Item* buildItem(const json &spec) {
 		int id = 0;
 		if (spec.is_number_integer()) {
@@ -163,15 +175,7 @@ namespace mcp {
 			} else if (spec.contains("subtype")) {
 				item->setSubtype(static_cast<uint16_t>(spec["subtype"].get<int>()));
 			}
-			if (spec.contains("actionId")) {
-				item->setActionID(static_cast<uint16_t>(spec["actionId"].get<int>()));
-			}
-			if (spec.contains("uniqueId")) {
-				item->setUniqueID(static_cast<uint16_t>(spec["uniqueId"].get<int>()));
-			}
-			if (spec.contains("text")) {
-				item->setText(spec["text"].get<std::string>());
-			}
+			applyItemAttributes(item, spec);
 
 			if (spec.contains("destination")) {
 				auto* teleport = dynamic_cast<Teleport*>(item);
