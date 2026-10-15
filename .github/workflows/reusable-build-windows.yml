@@ -16,10 +16,6 @@ jobs:
   build:
     name: Compile (windows-release)
     runs-on: windows-2025
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
     # The mise tasks are bash scripts; Git Bash runs them.
     defaults:
       run:
@@ -82,22 +78,6 @@ jobs:
 
       - name: Set up vcpkg
         run: mise run setup:vcpkg
-
-      - name: DIAG vcpkg abi
-        run: |
-          set +e -uo pipefail
-          echo "image ${ImageVersion:-unknown}"
-          args=(install --debug --x-install-root=build/windows-release/vcpkg_installed --overlay-triplets=cmake/triplets --triplet=x64-windows-static-release --host-triplet=x64-windows)
-          echo "=== step env: which cmake: $(command -v cmake)"
-          (source .mise/lib/preset.sh; "${VCPKG_ROOT}/vcpkg" "${args[@]}" --dry-run > "${RUNNER_TEMP}/dry-step.log" 2>&1)
-          echo "=== mise exec env: which cmake: $(mise exec -- bash -c 'command -v cmake')"
-          mise exec -- bash -c 'source .mise/lib/preset.sh; timeout 240 "${VCPKG_ROOT}/vcpkg" "$@" > "${RUNNER_TEMP}/real-mise.log" 2>&1' _ "${args[@]}"
-          for f in dry-step real-mise; do
-            echo "##### ${f}"
-            grep -n 'Restored\|package ABI\|Found path\|cmake.exe" --version\|Feature flag\|will be built\|will be restored\|Error' "${RUNNER_TEMP}/${f}.log" | grep -v '^.*PATH=' | head -40
-            awk '/abientries for vcpkg-cmake:x64-windows>/{f=1} f{print} /<\/abientries>/{if(f)exit}' "${RUNNER_TEMP}/${f}.log"
-          done
-          exit 1
 
       # The log feeds the push check below.
       - name: Install vcpkg packages
