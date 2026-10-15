@@ -15,10 +15,10 @@ Building
 [mise](https://mise.jdx.dev/getting-started.html) installs CMake, Ninja, the compiler cache and the lint tools at the versions pinned in `.mise/config.toml`, then drives the build:
 
 ```bash
-mise run setup      # clone vcpkg at the vcpkg.json baseline, add the upstream remote
-mise run build:dev  # configure and build the debug preset, for local development
-mise run build      # configure and build the release preset for this OS
-mise run package    # zip the release editor with data/, brushes/, icons/ and LICENSE.rtf into dist/
+mise run setup    # clone vcpkg at the vcpkg.json baseline, add the upstream remote
+mise run dev      # build the debug editor and start it
+mise run build    # configure and build the release preset for this OS
+mise run package  # zip the release editor with data/, brushes/, icons/ and LICENSE.rtf into dist/
 ```
 
 mise does not install the compiler or the system libraries:

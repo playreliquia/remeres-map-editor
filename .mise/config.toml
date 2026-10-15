@@ -79,4 +79,4 @@ hide = true
 [tasks.clean]
 description = "Remove build output and packages"
 shell = "bash -c"
-run = "rm -rf build dist"
+run = "rm -rf build dist canary-map-editor-debug canary-map-editor-debug-x64.exe"
