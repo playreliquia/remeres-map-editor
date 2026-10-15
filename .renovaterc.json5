@@ -124,8 +124,9 @@
       // none, and skips `mise lock`; this repository keeps one mise.lock at the root, which
       // ci's `mise install --locked` reads. Per update, not per branch: a branch-mode task
       // takes the branch's config, which follows the group's first update. renovate.yml sets
-      // MISE_SAFE=1, which stops the config from executing code, and its
-      // RENOVATE_ALLOWED_COMMANDS admits only this command.
+      // MISE_SAFE=1, which stops the config from executing code, MISE_NPM_SHELL_OUT=1, which
+      // safe mode would otherwise drop from the config, and its RENOVATE_ALLOWED_COMMANDS
+      // admits only this command.
       description: "Rewrite the root mise.lock for each mise tool on the branch",
       matchManagers: ["mise"],
       postUpgradeTasks: {

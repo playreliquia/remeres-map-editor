@@ -95,7 +95,10 @@ jobs:
           # The one postUpgradeTasks command, `mise lock` over one named mise tool. Tasks run
           # without a shell, so safe mode comes from the environment Renovate gives every child.
           RENOVATE_ALLOWED_COMMANDS: '["^mise lock [A-Za-z0-9:@/._-]+$"]'
-          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_SAFE":"1"}'
+          # Safe mode ignores the project's [settings], so npm.shell_out comes from here too;
+          # without it `mise lock` points mise.lock at a sidecar under .mise/locks/ that
+          # `mise install --locked` rejects.
+          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_SAFE":"1","MISE_NPM_SHELL_OUT":"1"}'
           # The App's bot user; must match the token's identity or Renovate treats its
           # own branches as edited by someone else.
           RENOVATE_GIT_AUTHOR: "reliquia-automation[bot] <331776854+reliquia-automation[bot]@users.noreply.github.com>"
@@ -140,4 +143,4 @@ jobs:
           RENOVATE_DRY_RUN: full
           RENOVATE_PLATFORM: github
           RENOVATE_ALLOWED_COMMANDS: '["^mise lock [A-Za-z0-9:@/._-]+$"]'
-          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_SAFE":"1"}'
+          RENOVATE_CUSTOM_ENV_VARIABLES: '{"MISE_SAFE":"1","MISE_NPM_SHELL_OUT":"1"}'

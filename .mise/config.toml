@@ -43,7 +43,8 @@ prettier = "3.9.9"
 lockfile_platforms = ["linux-x64", "macos-arm64", "windows-x64"]
 # Install npm tools with the npm CLI. mise's built-in installer also records each npm tool's
 # dependency tree in a sidecar under .mise/locks/ that mise.lock points to; with this setting
-# mise.lock alone pins the tools, as in reliquia.
+# mise.lock alone pins the tools, as in reliquia. Renovate's `mise lock` runs in safe mode, which
+# ignores this table, so renovate.yml sets MISE_NPM_SHELL_OUT as well.
 npm.shell_out = true
 
 [env]
