@@ -346,8 +346,10 @@ namespace LuaAPI {
 		}
 	}
 
-	// Transaction function with undo/redo support
-	static void transaction(const std::string &name, sol::function func) {
+	// Runs the body of app.transaction. Returns false and the body's error object
+	// after a rollback, so the Lua wrapper can re-raise it unchanged; a C++ throw
+	// would reach the script as a string.
+	static std::tuple<bool, sol::object> runTransaction(const std::string &name, sol::protected_function body) {
 		Editor* editor = g_gui.GetCurrentEditor();
 		if (!editor) {
 			throw sol::error("No map open");
@@ -355,9 +357,16 @@ namespace LuaAPI {
 
 		LuaTransaction &trans = LuaTransaction::getInstance();
 
+		// Outside the try: a nested call must not roll back the outer transaction.
+		trans.begin(editor);
+
 		try {
-			trans.begin(editor);
-			func();
+			sol::protected_function_result result = body();
+			if (!result.valid()) {
+				sol::object errorObject(result.lua_state(), result.stack_index());
+				trans.rollback();
+				return { false, errorObject };
+			}
 			trans.commit();
 			g_gui.RefreshView();
 		} catch (const sol::error &) {
@@ -367,7 +376,22 @@ namespace LuaAPI {
 			trans.rollback();
 			throw sol::error(std::string("Transaction failed: ") + e.what());
 		}
+		return { true, sol::object() };
 	}
+
+	// error(err, 0) re-raises the body's error object as is, without adding a
+	// position. The local captures error before any script can replace it.
+	static constexpr const char* TRANSACTION_WRAPPER = R"lua(
+		local error = error
+		return function(run)
+			return function(name, body)
+				local ok, err = run(name, body)
+				if not ok then
+					error(err, 0)
+				end
+			end
+		end
+	)lua";
 
 	static sol::object getBorders(sol::this_state ts) {
 		sol::state_view lua(ts);
@@ -725,6 +749,8 @@ namespace LuaAPI {
 		app["alert"] = showAlert;
 		app["hasMap"] = hasMap;
 		app["refresh"] = refresh;
+		sol::protected_function makeTransaction = lua.safe_script(TRANSACTION_WRAPPER, "=app.transaction");
+		sol::function transaction = makeTransaction(&runTransaction);
 		app["transaction"] = transaction;
 		app["setClipboard"] = setClipboard;
 		app["getDataDirectory"] = getDataDirectory;
