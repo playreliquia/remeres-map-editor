@@ -121,10 +121,11 @@ jobs:
       actions: write
     uses: ./.github/workflows/reusable-build-linux.yml
 
+  # macOS is not a first-class platform, so its build runs only on manual dispatch.
   build-macos:
     name: Build - macOS
     needs: [changes, checks]
-    if: needs.changes.outputs.compile == 'true' && needs.checks.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    if: github.event_name == 'workflow_dispatch' && needs.changes.outputs.compile == 'true' && needs.checks.result == 'success'
     permissions:
       contents: read
       actions: write
