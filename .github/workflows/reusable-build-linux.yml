@@ -105,18 +105,18 @@ jobs:
           path: dist/remeres-map-editor-*.zip
           if-no-files-found: error
 
-      # A merge group's caches sit under its own ref, which no later run can restore.
+      # A merge group's or a tag's caches sit under its own ref, which no later run can restore.
       - name: Save ccache
-        if: always() && github.event_name != 'merge_group'
+        if: always() && github.event_name != 'merge_group' && !startsWith(github.ref, 'refs/tags/')
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .cache/ccache
           key: ccache-linux-release-${{ github.ref_name }}-${{ github.sha }}
 
       # Saved even when the job fails, so the next attempt keeps what this one built. A merge
-      # group's caches sit under its own ref, which no later run can restore.
+      # group's or a tag's caches sit under its own ref, which no later run can restore.
       - uses: ./.github/actions/vcpkg-cache
-        if: always() && github.event_name != 'merge_group'
+        if: always() && github.event_name != 'merge_group' && !startsWith(github.ref, 'refs/tags/')
         with:
           mode: save
           os: linux

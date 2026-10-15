@@ -25,5 +25,5 @@ runs:
         # renovate: datasource=github-releases depName=jdx/mise
         version: "2026.10.5"
         install_args: ${{ inputs.install_args }}
-        # A merge group's caches sit under its own ref, which no later run can restore.
-        cache_save: ${{ github.event_name != 'merge_group' }}
+        # A merge group's or a tag's caches sit under its own ref, which no later run can restore.
+        cache_save: ${{ github.event_name != 'merge_group' && !startsWith(github.ref, 'refs/tags/') }}
