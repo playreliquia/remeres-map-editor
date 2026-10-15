@@ -27,6 +27,8 @@ mise does not install the compiler or the system libraries:
 * Windows: Visual Studio 2026 with the C++ workload. Run mise from Git Bash; the build tasks load the MSVC environment themselves.
 * macOS: the Xcode Command Line Tools.
 
+On Windows with WSL, clone the repository onto the WSL disk (`~/...`), not under `/mnt/*`: builds across the Windows drive bridge run several times slower. In VS Code, open that clone through the WSL extension and press F5. The `build:dev` task builds the `linux-debug` preset, and gdb starts the editor through WSLg.
+
 `mise tasks` lists the rest. The [per-platform guides](docs/building/README.md) cover the manual build without mise.
 
 I want to contribute
