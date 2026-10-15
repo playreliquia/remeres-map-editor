@@ -12,7 +12,7 @@
 # zizmor and actionlint findings stay unfixed, so they stay byte for byte upstream's. Every
 # workflow the fork runs is linted, upstream's included: an upstream merge that brings an
 # unpinned action into one of them fails lint until the action is pinned.
-files: ^(\.github/|\.vscode/|\.mise/|\.config/|cmake/triplets/[^/]+-release\.cmake$|docs/agents/|docs/building/README\.md$|\.pre-commit-config\.yaml$|\.renovaterc\.json5$|release-please-config\.json$|\.release-please-manifest\.json$|mise\.lock$)
+files: ^(\.github/|\.vscode/|\.mise/|\.config/|cmake/triplets/[^/]+-release\.cmake$|docs/agents/|docs/building/README\.md$|\.pre-commit-config\.yaml$|\.renovaterc\.json5$|release-please-config\.json$|\.release-please-manifest\.json$|mise\.lock$|tools/[^/]+\.sh$|tests/tools/[^/]+\.sh$)
 exclude: ^\.github/workflows/(autofix-ci|update_vcpkg_baseline|reusable-build-docker)\.yml$
 
 # The pre-push stage runs no hook yet; without this every hook would also run over the pushed

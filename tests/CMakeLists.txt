@@ -18,3 +18,12 @@ endif()
 # PRE_TEST lists the cases when ctest runs, so a test binary that cannot start
 # fails the test run rather than the build.
 catch_discover_tests(rme-tests DISCOVERY_MODE PRE_TEST)
+
+# tools/windows-save-checks.sh runs under WSL. Its tests stub WSL interop and powershell.exe,
+# so any Linux host runs them with bash alone; the macOS and Windows jobs skip them.
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  find_program(BASH_PROGRAM bash REQUIRED)
+  add_test(NAME test_windows_save_checks
+           COMMAND ${BASH_PROGRAM}
+                   ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_windows_save_checks.sh)
+endif()

@@ -283,6 +283,48 @@ end)
 app.refresh()
 ```
 
+## Validating a save on Windows
+
+`tools/windows-save-checks.sh` injects the save failures that issue #47 checks
+on a Windows editor. It runs from WSL and drives `powershell.exe` through
+interop, so an agent can run each case while the editor stays open. Pass a path
+in the form `map_info.filename` returns it (`D:\maps\world.otbm`) or as a WSL
+path (`/mnt/d/maps/world.otbm`).
+
+| Command | Effect |
+| --- | --- |
+| `hold <file>` | Opens `<file>` from Windows with `FileShare None` until `release` or `--timeout` seconds (default 600). |
+| `release <file>` | Stops the holder and confirms Windows can open the file again. |
+| `readonly <file> on\|off` | Sets or clears the Windows read-only attribute. Running it twice is safe. |
+| `evidence <file>` | Prints `~` files next to the map, `backups/`, `git status --porcelain` and `git diff --summary` as a fenced block to paste into the issue. |
+
+`hold` and `readonly on` refuse to start while the map's git checkout has
+uncommitted changes, so the evidence shows only what the save did. Pass
+`--allow-dirty` to run them anyway, for example to mark the map read-only again
+after the first save in case 3. `release`, `readonly off` and `evidence` always
+run. The script exits non-zero with a message when it runs outside WSL or
+cannot find `powershell.exe`.
+
+The cases, in order:
+
+1. **Happy path.** Edit and run `editor_action save`. Expect `saved: true` and
+   the written files in `sidecars`. `evidence` shows only the `.otbm` and the
+   changed sidecars, no `~` files and no `backups/`.
+2. **Sidecar held open.** `hold` the house file, save, then `release`. Expect
+   `isError`, `restored: [<map>.otbm]` and `failed: [<map>-house.xml]`, with no
+   dialog.
+3. **Read-only map, twice.** `readonly <map> on` and save, then mark it
+   read-only again and save a second time. Neither save leaves a `~` file or
+   loses the newer version.
+4. **Failure after writing starts.** On a scratch copy only, create a directory
+   at the path of a sidecar the save would create, then save. Expect `isError`,
+   every original restored, and the created files in `removed`.
+5. **Non-ASCII directory.** Repeat case 2 from a path such as `D:\tmp\mapä\`.
+
+On a `/mnt/d` clone with `core.fileMode=true`, every file Windows rewrites
+shows as `mode change 100644 => 100755` in `evidence`. Those mode changes are
+expected noise.
+
 ## Notes for maintainers
 
 - Transport and JSON-RPC: `source/mcp/mcp_server.cpp`. Only `POST /mcp` is
