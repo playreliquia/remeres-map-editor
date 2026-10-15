@@ -404,6 +404,8 @@ public:
 	virtual ~DiskNodeFileWriteHandle();
 
 	virtual void close();
+	// Flushes and closes the file, returning false if any write or the close failed.
+	bool finish();
 
 protected:
 	virtual void renewCache();

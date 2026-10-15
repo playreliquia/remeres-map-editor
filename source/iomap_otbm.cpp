@@ -5823,7 +5823,10 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 		return false;
 	}
 
-	if (!saveMap(map, f)) {
+	// A full disk shows only in the handle's error state, which its destructor would
+	// discard, so the handle is finished here and checked.
+	if (!saveMap(map, f) || !f.finish()) {
+		error("Could not write %s", (const char*)identifier.GetFullPath().mb_str(wxConvUTF8));
 		return false;
 	}
 

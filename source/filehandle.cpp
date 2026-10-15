@@ -561,7 +561,10 @@ DiskNodeFileWriteHandle::DiskNodeFileWriteHandle(const std::string &name, const 
 		return;
 	}
 
-	fwrite(identifier.c_str(), 1, 4, file);
+	if (fwrite(identifier.c_str(), 1, 4, file) != 4) {
+		error_code = FILE_WRITE_ERROR;
+		return;
+	}
 	if (!cache) {
 		cache = (uint8_t*)malloc(cache_size + 1);
 	}
@@ -579,6 +582,17 @@ void DiskNodeFileWriteHandle::close() {
 		file = nullptr;
 		error_code = FILE_NO_ERROR;
 	}
+}
+
+bool DiskNodeFileWriteHandle::finish() {
+	if (!file) {
+		return false;
+	}
+	renewCache();
+	const bool written = error_code == FILE_NO_ERROR && ferror(file) == 0;
+	const bool closed = fclose(file) == 0;
+	file = nullptr;
+	return written && closed;
 }
 
 void DiskNodeFileWriteHandle::renewCache() {
