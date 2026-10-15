@@ -79,6 +79,28 @@ jobs:
       - name: Set up vcpkg
         run: mise run setup:vcpkg
 
+      - name: DIAG vcpkg abi
+        run: |
+          set -uo pipefail
+          source .mise/lib/preset.sh
+          for abi in baf4ae0206a7b8594be0fe8358ecdd97e2c03748147e454f35583839884fb944 000c1c01cca3edf1c8246372b7c38da63ace219d1b375e395bff8729b984a052; do
+            zip=".cache/vcpkg/${abi:0:2}/${abi}.zip"
+            echo "=== main zip ${zip}"
+            ls -la "${zip}" || continue
+            unzip -l "${zip}" | grep abi_info
+            unzip -p "${zip}" '*/vcpkg_abi_info.txt'
+          done
+          "${VCPKG_ROOT}/vcpkg" install --dry-run --debug \
+            --x-install-root=build/windows-release/vcpkg_installed \
+            --overlay-triplets=cmake/triplets \
+            --triplet=x64-windows-static-release --host-triplet=x64-windows > "${RUNNER_TEMP}/dry.log" 2>&1
+          grep -n -i 'abientries\|triplet abi\|compiler\|powershell\|cmake version\|<abientries' "${RUNNER_TEMP}/dry.log" | head -200
+          for p in 'vcpkg-cmake:x64-windows' 'zlib:x64-windows-static-release'; do
+            echo "=== computed ${p}"
+            grep -n -A40 "abientries for ${p}" "${RUNNER_TEMP}/dry.log" | head -60
+          done
+          exit 1
+
       # The log feeds the push check below.
       - name: Install vcpkg packages
         run: |
