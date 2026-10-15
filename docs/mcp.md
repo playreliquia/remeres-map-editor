@@ -3,7 +3,9 @@
 Remere's Map Editor can expose the map you have open to an AI client over the
 [Model Context Protocol](https://modelcontextprotocol.io). The client gets tools
 to read the map by coordinate region, inspect tiles, items, houses, spawns,
-waypoints and zones, render an area as an image, and edit the map through Lua.
+waypoints and zones, render an area as an image, and edit the map. Edits go
+through typed tools such as `tile_edit`, `brush_apply` and the `*_manage`
+tools, with `run_lua` as the scripting escape hatch.
 
 The server lives inside the editor process, so it always acts on the map
 currently in focus — no export step, no second copy of the map.
@@ -15,8 +17,11 @@ currently in focus — no export step, no second copy of the map.
 - **Enable server** binds a listener on `127.0.0.1` at the chosen port
   (default `7331`). The setting is remembered, so the server comes back up on
   the next launch.
-- **Allow write operations** is off by default. While it is off, `run_lua` is
-  refused and the AI can only read.
+- **Allow write operations** is off by default. While it is off, the server
+  refuses every tool that declares itself a write (26 today, `run_lua` among
+  them), and `border_check` refuses `fix=true`. Some refused tools leave the
+  map alone: `map_open`, `palette_select` and `editor_settings` change the
+  editor session, and `export_minimap` writes image files.
 - **Copy config** puts a ready-to-paste snippet for the selected client on the
   clipboard.
 - The **log** shows every tool call with its duration, plus refusals and errors.
@@ -133,6 +138,7 @@ images.
 | Tool | Purpose |
 | --- | --- |
 | `tileset_list` | Tilesets and their categories (terrain, doodad, item, raw, …) with the brushes inside — the palette structure. Browse by tileset instead of guessing names. |
+| `brush_list` | The brushes this installation has, optionally filtered by name. |
 | `brush_info` | One brush: kind, whether it auto-borders, the item it shows in the palette, and which tilesets and categories it belongs to. |
 | `brush_preview` | A PNG of what the brush actually produces: painted onto a scratch area, auto-bordered, and drawn with real sprites. Check a brush is the water or mountain you meant before touching the map. |
 | `brush_apply` | Apply it for real. Borders, wall corners and carpet edges are computed by the brush. |
@@ -191,15 +197,27 @@ shows the player unmapped space — invisible in the editor unless you go lookin
 
 ### Editing
 
-Every write goes through the editor's action queue as `ACTION_MCP`, so it shows
-up in the actions history and reverts with Ctrl+Z. All of these are refused
-while the panel is in read-only mode.
+A tile edit goes through the editor's action queue, so it shows up in the
+actions history and reverts with Ctrl+Z. Most tools record it as `ACTION_MCP`,
+which the history lists as "MCP". Some tools reuse the action type of the
+editor feature they mirror:
+
+- `brush_apply` uses `ACTION_DRAW`, or `ACTION_ERASE` with `erase=true`.
+- `map_from_bitmap` uses `ACTION_DRAW`.
+- `region_replace_items` uses `ACTION_REPLACE_ITEMS`.
+- `region_paste` and `stamp_place` use `ACTION_PASTE_TILES`.
+- `border_check` with `fix=true` uses `ACTION_BORDERIZE`.
+- `selection_op` uses `ACTION_BORDERIZE`, `ACTION_RANDOMIZE` or
+  `ACTION_DELETE_TILES` for `borderize`, `randomize` and `delete`, and
+  `ACTION_MCP` for its other edits.
+- `run_lua` edits inside `app.transaction` use `ACTION_LUA_SCRIPT`.
+
+Every tool in the table below is refused while the panel is in read-only mode.
 
 | Tool | Purpose |
 | --- | --- |
 | `tile_edit` | Batch tile mutation in a single undo step: ground, add/remove items (with count, action id, unique id, text), clear items, map flags, house id, zones, optional borderize/wallize. Prefer one call with many tiles. |
 | `brush_apply` | Apply a named editor brush over a list of positions. This is how you get correct borders, wall connections and doodad composition instead of placing raw ids. |
-| `brush_list` | The brushes this installation has. |
 | `editor_action` | undo, redo, save, goto, select, deselect, clear_selection. `save` writes the open map to its own file with no dialog, and refuses a map that has no file yet. It returns `saved`, `filename`, `sidecars` (the sidecar files it wrote) and `hasUnsavedChanges`. A save that cannot move an existing file aside writes nothing. If any file fails to write, every file is renamed back from the `~` copy this save made, and a sidecar the save created is deleted. The tool result then sets `isError`, and the JSON adds `error`, `restored`, `removed` (the created files it deleted) and `failed` (`file` and `error` for each). A successful save leaves no `~` file, and an MCP save never writes to `backups/`. |
 | `house_manage` | create / update / delete / set_exit / assign_tiles / unassign_tiles |
 | `town_manage` | create / update / delete (refuses to orphan houses unless forced) |
@@ -271,11 +289,16 @@ app.refresh()
   sockets out from under it.
 - Tool calls are handed to a small worker pool, which waits on the GUI thread
   through `callOnGui` in `source/mcp/mcp_gui_call.h`, because `Map`, `Tile` and
-  the GUI are not thread safe. The 30 second deadline there is what keeps a
-  modal dialog in the editor from hanging a client connection. A call that
-  times out, or is still queued when the server is stopped, is cancelled and
-  never runs later (a client retry would otherwise apply an edit twice), and
-  the write permission is re-checked when a call actually starts.
+  the GUI are not thread safe. The 30 second deadline there cancels only a
+  call that is still queued, for example behind a modal dialog that keeps the
+  GUI thread from draining its queue. Once a handler is running, the worker
+  waits for it with no limit, so a modal dialog the handler opens blocks the
+  call until someone closes it. `editor_action save` opens none: it skips the
+  failure popup in `Editor::saveMap`, and the sidecar writes run under
+  `wxLogNull`.
+- A call that times out, or is still queued when the server is stopped, is
+  cancelled and never runs later (a client retry would otherwise apply an edit
+  twice), and the write permission is re-checked when a call actually starts.
 - Handlers never nest: if one is running and a Lua `app.yield()` drains the
   queue, later calls wait until it finishes, so a second tool cannot close the
   map a running script still holds pointers into.
