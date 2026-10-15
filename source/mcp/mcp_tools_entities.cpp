@@ -188,19 +188,77 @@ namespace mcp {
 			return jsonResult(json { { "count", waypoints.size() }, { "waypoints", std::move(waypoints) } });
 		}
 
-		json toolZoneList(const json &) {
+		struct ZoneBounds {
+			int64_t tiles = 0;
+			Position from;
+			Position to;
+		};
+
+		json toolZoneList(const json &params) {
 			Editor* editor = requireEditor();
 			Map &map = editor->getMap();
 
-			json zones = json::array();
+			const std::string nameFilter = as_lower_str(readString(params, "name"));
+			const bool withBounds = params.value("bounds", false);
+
+			std::vector<std::pair<std::string, unsigned int>> selected;
 			for (const auto &[name, id] : map.zones.zones) {
-				zones.push_back(json { { "id", id }, { "name", name } });
+				if (!nameFilter.empty() && as_lower_str(name).find(nameFilter) == std::string::npos) {
+					continue;
+				}
+				selected.emplace_back(name, id);
+			}
+
+			std::map<unsigned int, ZoneBounds> bounds;
+			if (withBounds && !selected.empty()) {
+				for (const auto &[name, id] : selected) {
+					bounds.emplace(id, ZoneBounds {});
+				}
+				// Empty tiles are skipped as in map_find, because the editor
+				// drops them on save and the bounds should match the saved map.
+				auto visit = [&](TileLocation* location) {
+					const Tile* tile = location ? location->get() : nullptr;
+					if (!tile || tile->empty() || !tile->hasZone()) {
+						return;
+					}
+					const Position pos = tile->getPosition();
+					for (const unsigned int zoneId : tile->zones) {
+						auto it = bounds.find(zoneId);
+						if (it == bounds.end()) {
+							continue;
+						}
+						ZoneBounds &box = it->second;
+						if (box.tiles == 0) {
+							box.from = pos;
+							box.to = pos;
+						} else {
+							box.from = Position(std::min(box.from.x, pos.x), std::min(box.from.y, pos.y), std::min(box.from.z, pos.z));
+							box.to = Position(std::max(box.to.x, pos.x), std::max(box.to.y, pos.y), std::max(box.to.z, pos.z));
+						}
+						++box.tiles;
+					}
+				};
+				map.forEachTileLocation(visit);
+			}
+
+			json zones = json::array();
+			for (const auto &[name, id] : selected) {
+				json zone { { "id", id }, { "name", name } };
+				if (withBounds) {
+					const ZoneBounds &box = bounds.at(id);
+					zone["tiles"] = box.tiles;
+					if (box.tiles > 0) {
+						zone["from"] = positionToJson(box.from);
+						zone["to"] = positionToJson(box.to);
+					}
+				}
+				zones.push_back(std::move(zone));
 			}
 
 			return jsonResult(json {
 				{ "count", zones.size() },
 				{ "zones", std::move(zones) },
-				{ "note", "use map_find with zoneId to locate the tiles assigned to a zone" } });
+				{ "note", withBounds ? "tiles counts non-empty tiles; from/to is their bounding box, absent when the zone has none" : "use map_find with zoneId to locate the tiles assigned to a zone" } });
 		}
 
 		// ------------------------------------------------------------------
@@ -422,8 +480,10 @@ namespace mcp {
 					   toolWaypointList });
 
 		registry.add({ "zone_list",
-					   "List the zones defined in the map with their ids and names.",
-					   json { { "type", "object" }, { "properties", json::object() } },
+					   "List the zones defined in the map with their ids and names. Pass bounds: true to also get each zone's non-empty tile count and bounding box; that walks the whole map, even with a name filter.",
+					   json {
+						   { "type", "object" },
+						   { "properties", json { { "name", json { { "type", "string" }, { "description", "substring of the zone name" } } }, { "bounds", json { { "type", "boolean" }, { "description", "default false; true adds tiles, from and to per zone in one pass over the map" } } } } } },
 					   false,
 					   toolZoneList });
 
