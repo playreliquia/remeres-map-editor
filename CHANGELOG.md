@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.1](https://github.com/playreliquia/remeres-map-editor/compare/v0.1.0...v0.1.1) (2026-10-15)
+
+
+### Features
+
+* **mcp:** edit an item's attributes in place with tile_edit setitems ([#55](https://github.com/playreliquia/remeres-map-editor/issues/55)) ([7db8b74](https://github.com/playreliquia/remeres-map-editor/commit/7db8b74450505effead0fbe15ef87e0841b232af))
+* **mcp:** report each zone's tile count and bounds from zone_list ([#54](https://github.com/playreliquia/remeres-map-editor/issues/54)) ([b32a191](https://github.com/playreliquia/remeres-map-editor/commit/b32a19185af3f59b640ab60e7eaef0d4933938ff))
+
+
+### Bug Fixes
+
+* **editor:** harden map save for non-ascii paths, throws and backups ([#59](https://github.com/playreliquia/remeres-map-editor/issues/59)) ([7f7df90](https://github.com/playreliquia/remeres-map-editor/commit/7f7df9081c49c82e3d56441778543e59780b49b2))
+* **mcp:** report the save result, roll back failed sidecars and leave no ~ files ([#49](https://github.com/playreliquia/remeres-map-editor/issues/49)) ([341917e](https://github.com/playreliquia/remeres-map-editor/commit/341917e5bd5807ee3a44b0105d877a7a35dc5838))
+* **tools:** follow-up review fixes for the windows save checks ([#64](https://github.com/playreliquia/remeres-map-editor/issues/64)) ([31eaf7f](https://github.com/playreliquia/remeres-map-editor/commit/31eaf7fe64683d1018f434d60030b61f0aa07947))
+
 ## 0.1.0 (2026-10-15)
 
 
