@@ -18,10 +18,10 @@ currently in focus — no export step, no second copy of the map.
   (default `7331`). The setting is remembered, so the server comes back up on
   the next launch.
 - **Allow write operations** is off by default. While it is off, the server
-  refuses all 26 tools registered as writes, `run_lua` among them, and
-  `border_check` refuses `fix=true`. The writes include `map_open`,
-  `palette_select` and `editor_settings`, which change the editor session
-  rather than the map, and `export_minimap`, which writes image files.
+  refuses every tool that declares itself a write (26 today, `run_lua` among
+  them), and `border_check` refuses `fix=true`. Some refused tools leave the
+  map alone: `map_open`, `palette_select` and `editor_settings` change the
+  editor session, and `export_minimap` writes image files.
 - **Copy config** puts a ready-to-paste snippet for the selected client on the
   clipboard.
 - The **log** shows every tool call with its duration, plus refusals and errors.
@@ -209,7 +209,7 @@ editor feature they mirror:
 - `border_check` with `fix=true` uses `ACTION_BORDERIZE`.
 - `selection_op` uses `ACTION_BORDERIZE`, `ACTION_RANDOMIZE` or
   `ACTION_DELETE_TILES` for `borderize`, `randomize` and `delete`, and
-  `ACTION_MCP` for its other operations.
+  `ACTION_MCP` for its other edits.
 - `run_lua` edits inside `app.transaction` use `ACTION_LUA_SCRIPT`.
 
 Every tool in the table below is refused while the panel is in read-only mode.
@@ -293,10 +293,8 @@ app.refresh()
   call that is still queued, for example behind a modal dialog that keeps the
   GUI thread from draining its queue. Once a handler is running, the worker
   waits for it with no limit, so a modal dialog the handler opens blocks the
-  call until someone closes it. The save path's failure popup is one such
-  modal. The save fix in
-  [playreliquia/remeres-map-editor#44](https://github.com/playreliquia/remeres-map-editor/issues/44)
-  gates it.
+  call until someone closes it. The save path's failure popup
+  (`Editor::saveMap`) is one such modal.
 - A call that times out, or is still queued when the server is stopped, is
   cancelled and never runs later (a client retry would otherwise apply an edit
   twice), and the write permission is re-checked when a call actually starts.
