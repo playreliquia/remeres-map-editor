@@ -8,6 +8,12 @@ inputs:
   os:
     description: The key's platform part, for example linux, windows or macos.
     required: true
+  installed:
+    description: >-
+      `save` only: the vcpkg install root of this run's successful install. Zips under
+      `.cache/vcpkg` that it did not install are deleted before the save. Empty keeps every zip.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -21,6 +27,45 @@ runs:
         restore-keys: |
           vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-
 
+    # Each package zip is named by its ABI, so a baseline bump or a triplet edit leaves the old
+    # zips next to the new ones, and every later save would carry them on. The install root's
+    # status database lists the ABI of each package this run restored or built, so every other
+    # zip is dead weight. Without a successful install there is no complete list, and every zip
+    # is kept.
+    - name: Prune stale vcpkg package zips
+      if: inputs.mode == 'save'
+      shell: bash
+      env:
+        INSTALLED: ${{ inputs.installed }}
+      run: |
+        set -euo pipefail
+        db="${INSTALLED}/vcpkg"
+        if [[ -z "${INSTALLED}" || ! -f "${db}/status" ]]; then
+          echo "No successful install to read the live packages from; keeping every zip."
+          exit 0
+        fi
+        # vcpkg appends to updates/ and folds it into status later, so both hold entries. The
+        # match takes only 64-hex ABIs; if vcpkg changes the format, nothing matches and every
+        # zip is kept.
+        live=$(cat "${db}/status" "${db}"/updates/* 2>/dev/null \
+          | tr -d '\r' | sed -n 's/^Abi: \([0-9a-f]\{64\}\)$/\1/p' | sort -u || true)
+        if [[ -z "${live}" ]]; then
+          echo "::warning::${db}/status lists no package ABI; keeping every zip."
+          exit 0
+        fi
+        kept=0
+        deleted=0
+        while IFS= read -r zip; do
+          if grep -qxF "$(basename "${zip}" .zip)" <<<"${live}"; then
+            kept=$((kept + 1))
+          else
+            rm -f "${zip}"
+            deleted=$((deleted + 1))
+          fi
+        done < <(find .cache/vcpkg -type f -name '*.zip')
+        find .cache/vcpkg -mindepth 1 -type d -empty -delete
+        echo "Kept ${kept} and deleted ${deleted} package zip(s); the install lists $(grep -c . <<<"${live}") package(s)."
+
     # Under a per-run key, so a partial set saved by a failed job never blocks a later
     # complete one. The attempt is part of the key, so a rerun of a failed job saves too.
     - name: Save vcpkg packages
@@ -30,8 +75,10 @@ runs:
         path: .cache/vcpkg
         key: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-    # Each save holds every package of the ones before it, so only the newest per ref is worth
-    # keeping. Without the prune, per-run keys fill the 10 GB limit and evict main's cache.
+    # Each save holds its run's full live package set, so the older saves under the same prefix
+    # are redundant and only the newest per ref is worth keeping. The accepted tradeoff: while a
+    # runner-image rollout alternates the ABIs, Linux and macOS rebuild until it settles, and
+    # Windows falls back to the NuGet feed. Without the prune, per-run keys fill the 10 GB limit and evict main's cache.
     # It deletes only keys under this manifest hash that were created before this run attempt
     # started, so it never removes a newer run's save; a changed hash leaves the old keys to
     # age out. A fork's read-only token cannot delete caches; clean-cache.yaml removes its
