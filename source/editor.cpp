@@ -232,7 +232,7 @@ void Editor::clearChanges() {
 	map.clearChanges();
 }
 
-MapSaveResult Editor::saveMap(FileName filename, bool showdialog) {
+MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBackup) {
 	MapSaveResult result;
 	std::string savefile = filename.GetFullPath().mb_str(wxConvUTF8).data();
 	bool save_as = false;
@@ -397,7 +397,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog) {
 	}
 
 	// Move to permanent backup
-	if (!save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP)) {
+	if (makeBackup && !save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP)) {
 		std::string backup_path = map_path + "backups/";
 		ensureBackupDirectoryExists(backup_path);
 		// Move temporary backups to their proper files
@@ -457,7 +457,9 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog) {
 	std::remove(backup_spawn_npc.c_str());
 	std::remove(backup_zones.c_str());
 
-	deleteOldBackups(map_path + "backups/");
+	if (makeBackup) {
+		deleteOldBackups(map_path + "backups/");
+	}
 
 	clearChanges();
 	result.saved = true;

@@ -90,7 +90,9 @@ public: // Functions
 	void clearChanges();
 
 	// Map handling
-	MapSaveResult saveMap(FileName filename, bool showdialog); // "" means default filename
+	// "" means default filename. makeBackup = false skips backups/ and its pruning
+	// for a caller whose files have another backup, such as git.
+	MapSaveResult saveMap(FileName filename, bool showdialog, bool makeBackup = true);
 
 	Map &getMap() noexcept {
 		return map;
