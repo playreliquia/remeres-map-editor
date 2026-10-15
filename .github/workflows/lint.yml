@@ -42,6 +42,9 @@ jobs:
         if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group'
         env:
           LINT_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          # zizmor's online audits (impostor-commit, known-vulnerable-actions and the like)
+          # query the API; without a token it runs offline and skips them.
+          ZIZMOR_GITHUB_TOKEN: ${{ github.token }}
         run: mise run lint
 
       - name: Scan the history for secrets
