@@ -22,23 +22,29 @@
 #include <filesystem>
 #include <system_error>
 
-bool removeSaveFile(const std::string &path) {
-	const std::filesystem::path file = utf8Path(path);
-	std::error_code ec;
-	if (!std::filesystem::exists(file, ec)) {
-		return !ec;
+namespace {
+	// Windows refuses to delete a read-only file, and renaming a read-only original
+	// leaves a read-only ~ copy, so the attribute is cleared first.
+	bool removeSaveFile(const std::string &path) {
+		const std::filesystem::path file = utf8Path(path);
+		std::error_code ec;
+		if (!std::filesystem::exists(file, ec)) {
+			return !ec;
+		}
+		std::filesystem::permissions(file, std::filesystem::perms::owner_write, std::filesystem::perm_options::add, ec);
+		return std::filesystem::remove(file, ec);
 	}
-	std::filesystem::permissions(file, std::filesystem::perms::owner_write, std::filesystem::perm_options::add, ec);
-	return std::filesystem::remove(file, ec);
-}
 
-bool ensureBackupDirectoryExists(const std::string &directory) {
-	const std::filesystem::path path = utf8Path(directory);
-	std::error_code ec;
-	if (std::filesystem::is_directory(path, ec)) {
-		return true;
+	// Reports failure instead of throwing: a throw while ~ copies are on disk would
+	// skip the rollback and the ~ bookkeeping.
+	bool ensureBackupDirectoryExists(const std::string &directory) {
+		const std::filesystem::path path = utf8Path(directory);
+		std::error_code ec;
+		if (std::filesystem::is_directory(path, ec)) {
+			return true;
+		}
+		return std::filesystem::create_directory(path, ec);
 	}
-	return std::filesystem::create_directory(path, ec);
 }
 
 std::string moveIntoBackups(const SaveFile &file, const SaveBackups &backups) {
@@ -130,8 +136,7 @@ void rollBackSave(const std::vector<SaveFile> &files, MapSaveResult &result) {
 	}
 }
 
-std::vector<std::string> retireSaveBackups(const std::vector<SaveFile> &files, const SaveBackups &backups) {
-	std::vector<std::string> warnings;
+void retireSaveBackups(const std::vector<SaveFile> &files, const SaveBackups &backups, std::vector<std::string> &warnings) {
 	for (const SaveFile &file : files) {
 		if (!file.movedAside) {
 			continue;
@@ -151,5 +156,4 @@ std::vector<std::string> retireSaveBackups(const std::vector<SaveFile> &files, c
 			warnings.push_back("Keeping " + file.backup + " until the next save: " + failure);
 		}
 	}
-	return warnings;
 }

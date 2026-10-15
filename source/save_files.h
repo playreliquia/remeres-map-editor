@@ -59,14 +59,6 @@ struct SaveBackups {
 	std::string timestamp;
 };
 
-// Windows refuses to delete a read-only file, and renaming a read-only original
-// leaves a read-only ~ copy, so the attribute is cleared first.
-bool removeSaveFile(const std::string &path);
-
-// Reports failure instead of throwing: a throw while ~ copies are on disk would
-// skip the rollback and the ~ bookkeeping.
-bool ensureBackupDirectoryExists(const std::string &directory);
-
 // Moves a ~ copy into the backups directory as <name>.<timestamp>.<ext> and
 // returns why it could not, or "" on success. fs::rename replaces an existing
 // file, so when a save in the same second took the name, -1, -2, ... is appended.
@@ -86,7 +78,7 @@ void rollBackSave(const std::vector<SaveFile> &files, MapSaveResult &result);
 
 // After a successful write: moves each ~ copy this save made into backups when
 // they are kept, else deletes it. A ~ that cannot be moved stays for the next
-// save that keeps backups. Returns a warning for each ~ left behind.
-std::vector<std::string> retireSaveBackups(const std::vector<SaveFile> &files, const SaveBackups &backups);
+// save that keeps backups. warnings receives each ~ left behind.
+void retireSaveBackups(const std::vector<SaveFile> &files, const SaveBackups &backups, std::vector<std::string> &warnings);
 
 #endif

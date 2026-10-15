@@ -433,7 +433,9 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	// Drop this save's lines from the temporary save runfile
 	writeSaveRunFile(files, earlierUnrestored, false);
 
-	for (const std::string &warning : retireSaveBackups(files, backups)) {
+	warnings.clear();
+	retireSaveBackups(files, backups, warnings);
+	for (const std::string &warning : warnings) {
 		spdlog::warn("{}", warning);
 	}
 

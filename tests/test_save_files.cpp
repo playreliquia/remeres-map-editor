@@ -168,6 +168,25 @@ TEST_CASE("test_moveFilesAside_earlierBackupWithKeptBackups_movesItIntoBackups")
 	CHECK(warnings.empty());
 }
 
+TEST_CASE("test_moveFilesAside_backupsDirectoryBlocked_failsWithEveryFileInPlace") {
+	TempDirectory directory;
+	writeFile(directory.path("map.otbm"), "current");
+	writeFile(directory.path("map.otbm~"), "left by an earlier save");
+	// A file where backups/ should be, so the directory cannot be created.
+	writeFile(directory.path("backups"), "");
+	std::vector<SaveFile> files { directory.saveFile("map.otbm") };
+	MapSaveResult result;
+	std::vector<std::string> warnings;
+
+	REQUIRE_FALSE(moveFilesAside(files, directory.backups(true), result, warnings));
+
+	CHECK(readFile(directory.path("map.otbm")) == "current");
+	CHECK(readFile(directory.path("map.otbm~")) == "left by an earlier save");
+	CHECK_FALSE(files[0].movedAside);
+	REQUIRE(result.failed.size() == 1);
+	CHECK(result.error.starts_with("map.otbm: could not create"));
+}
+
 TEST_CASE("test_rollBackSave_fileTheSaveCreated_removesIt") {
 	TempDirectory directory;
 	std::vector<SaveFile> files { directory.saveFile("map-zones.xml") };
@@ -240,7 +259,10 @@ TEST_CASE("test_retireSaveBackups_backupsKept_movesEachBackupIntoBackups") {
 	std::vector<std::string> warnings;
 	REQUIRE(moveFilesAside(files, directory.backups(true), result, warnings));
 
-	CHECK(retireSaveBackups(files, directory.backups(true)).empty());
+	std::vector<std::string> retireWarnings;
+	retireSaveBackups(files, directory.backups(true), retireWarnings);
+
+	CHECK(retireWarnings.empty());
 
 	CHECK(readFile(directory.path("backups/map." + timestamp + ".otbm")) == "before");
 	CHECK_FALSE(exists(directory.path("map.otbm~")));
@@ -254,7 +276,10 @@ TEST_CASE("test_retireSaveBackups_backupsNotKept_deletesEachBackup") {
 	std::vector<std::string> warnings;
 	REQUIRE(moveFilesAside(files, directory.backups(false), result, warnings));
 
-	CHECK(retireSaveBackups(files, directory.backups(false)).empty());
+	std::vector<std::string> retireWarnings;
+	retireSaveBackups(files, directory.backups(false), retireWarnings);
+
+	CHECK(retireWarnings.empty());
 
 	CHECK_FALSE(exists(directory.path("map.otbm~")));
 	CHECK_FALSE(exists(directory.path("backups")));
