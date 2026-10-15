@@ -85,6 +85,7 @@ jobs:
         run: mise run setup:vcpkg
 
       - name: Install vcpkg packages
+        id: deps
         run: mkdir -p .cache/vcpkg && mise run build:deps
 
       - name: Build
@@ -119,3 +120,4 @@ jobs:
         with:
           mode: save
           os: linux
+          installed: ${{ steps.deps.outcome == 'success' && 'build/linux-release/vcpkg_installed' || '' }}
