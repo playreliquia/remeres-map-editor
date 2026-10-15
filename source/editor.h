@@ -32,6 +32,23 @@ class LiveClient;
 class LiveServer;
 class LiveSocket;
 
+struct MapSaveResult {
+	struct FailedFile {
+		std::string file;
+		std::string error;
+	};
+
+	bool saved = false;
+	std::string error;
+	// File names beside the map, never paths: the sidecars a successful save wrote,
+	// and on failure the files renamed back from their ~ copies and the files this
+	// save created and then deleted.
+	std::vector<std::string> sidecars;
+	std::vector<std::string> restored;
+	std::vector<std::string> removed;
+	std::vector<FailedFile> failed;
+};
+
 class Editor {
 public:
 	Editor(CopyBuffer &copybuffer, LiveClient* client);
@@ -75,7 +92,9 @@ public: // Functions
 	void clearChanges();
 
 	// Map handling
-	void saveMap(FileName filename, bool showdialog); // "" means default filename
+	// "" means default filename. makeBackup = false skips backups/ and its pruning
+	// for a caller whose files have another backup, such as git.
+	MapSaveResult saveMap(FileName filename, bool showdialog, bool makeBackup = true);
 
 	Map &getMap() noexcept {
 		return map;
@@ -152,7 +171,7 @@ public: // Functions
 	void undraw(const PositionVector &posvec, bool alt);
 	void undraw(const PositionVector &todraw, PositionVector &toborder, bool alt);
 
-	void ensureBackupDirectoryExists(const std::string &backup_path);
+	bool ensureBackupDirectoryExists(const std::string &backup_path);
 	void deleteOldBackups(const std::string &backup_path);
 
 protected:
@@ -189,10 +208,14 @@ inline void Editor::undraw(const PositionVector &todraw, PositionVector &toborde
 	drawInternal(todraw, toborder, alt, false);
 }
 
-inline void Editor::ensureBackupDirectoryExists(const std::string &backup_path) {
-	if (!std::filesystem::exists(backup_path)) {
-		std::filesystem::create_directory(backup_path);
+// Reports failure instead of throwing: it runs after the map is written, and a
+// throw would skip the ~ bookkeeping.
+inline bool Editor::ensureBackupDirectoryExists(const std::string &backup_path) {
+	std::error_code ec;
+	if (std::filesystem::is_directory(backup_path, ec)) {
+		return true;
 	}
+	return std::filesystem::create_directory(backup_path, ec);
 }
 
 #endif

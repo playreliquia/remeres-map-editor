@@ -45,6 +45,7 @@ class BaseMap;
 class Map;
 
 class Editor;
+struct MapSaveResult;
 class Brush;
 class HouseBrush;
 class HouseExitBrush;
@@ -383,7 +384,8 @@ public:
 	Map &GetCurrentMap();
 	int GetOpenMapCount();
 	bool ShouldSave();
-	void SaveCurrentMap(FileName filename, bool showdialog); // "" means default filename
+	// "" means default filename. result, when given, receives the save's outcome.
+	void SaveCurrentMap(FileName filename, bool showdialog, bool makeBackup = true, MapSaveResult* result = nullptr);
 	void SaveCurrentMap(bool showdialog = true) {
 		SaveCurrentMap(wxString(""), showdialog);
 	}

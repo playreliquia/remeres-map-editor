@@ -138,6 +138,27 @@ public:
 		std::string staticMapDataFileName;
 	};
 
+	enum class SidecarOutcome {
+		Unchanged,
+		Written,
+		Failed,
+	};
+
+	struct SidecarWrite {
+		SidecarOutcome outcome = SidecarOutcome::Unchanged;
+		std::string error;
+	};
+
+	struct SidecarFailure {
+		std::string file;
+		std::string error;
+	};
+
+	struct SidecarSaveReport {
+		std::vector<std::string> written;
+		std::vector<SidecarFailure> failed;
+	};
+
 	IOMapOTBM(MapVersion ver);
 	~IOMapOTBM() = default;
 
@@ -150,9 +171,13 @@ public:
 	const StaticHouseExportReport &getLastStaticHouseExportReport() const {
 		return staticHouseExportReport_;
 	}
+	const SidecarSaveReport &getLastSidecarSaveReport() const {
+		return sidecarSaveReport_;
+	}
 
 private:
 	StaticHouseExportReport staticHouseExportReport_;
+	SidecarSaveReport sidecarSaveReport_;
 
 protected:
 	static bool getVersionInfo(NodeFileReadHandle* f, MapVersion &out_ver);
@@ -168,13 +193,13 @@ protected:
 	bool loadZones(Map &map, pugi::xml_document &doc);
 
 	virtual bool saveMap(Map &map, NodeFileWriteHandle &handle);
-	bool saveSpawns(Map &map, const FileName &dir);
+	SidecarWrite saveSpawns(Map &map, const FileName &dir);
 	bool saveSpawns(Map &map, pugi::xml_document &doc);
-	bool saveHouses(Map &map, const FileName &dir);
+	SidecarWrite saveHouses(Map &map, const FileName &dir);
 	bool saveHouses(Map &map, pugi::xml_document &doc);
-	bool saveSpawnsNpc(Map &map, const FileName &dir);
+	SidecarWrite saveSpawnsNpc(Map &map, const FileName &dir);
 	bool saveSpawnsNpc(Map &map, pugi::xml_document &doc);
-	bool saveZones(Map &map, const FileName &dir);
+	SidecarWrite saveZones(Map &map, const FileName &dir);
 	bool saveZones(Map &map, pugi::xml_document &doc);
 	bool serializeStaticDataHouses(Map &map, std::string &buffer);
 	std::string getStaticDataFilename(const Map &map) const;

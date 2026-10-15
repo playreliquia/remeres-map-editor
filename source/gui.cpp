@@ -419,12 +419,15 @@ void GUI::unloadMapWindow() {
 	g_npcs.clear();
 }
 
-void GUI::SaveCurrentMap(FileName filename, bool showdialog) {
+void GUI::SaveCurrentMap(FileName filename, bool showdialog, bool makeBackup, MapSaveResult* result) {
 	MapTab* mapTab = GetCurrentMapTab();
 	if (mapTab) {
 		Editor* editor = mapTab->GetEditor();
 		if (editor) {
-			editor->saveMap(filename, showdialog);
+			MapSaveResult saveResult = editor->saveMap(filename, showdialog, makeBackup);
+			if (result) {
+				*result = std::move(saveResult);
+			}
 
 			const std::string &filename = editor->getMap().getFilename();
 			const Position &position = mapTab->GetScreenCenterPosition();

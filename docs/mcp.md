@@ -218,7 +218,7 @@ Every tool in the table below is refused while the panel is in read-only mode.
 | --- | --- |
 | `tile_edit` | Batch tile mutation in a single undo step: ground, add/remove items (with count, action id, unique id, text), clear items, map flags, house id, zones, optional borderize/wallize. Prefer one call with many tiles. |
 | `brush_apply` | Apply a named editor brush over a list of positions. This is how you get correct borders, wall connections and doodad composition instead of placing raw ids. |
-| `editor_action` | undo, redo, save, goto, select, deselect, clear_selection. |
+| `editor_action` | undo, redo, save, goto, select, deselect, clear_selection. `save` writes the open map to its own file with no dialog, and refuses a map that has no file yet. It returns `saved`, `filename`, `sidecars` (the sidecar files it wrote) and `hasUnsavedChanges`. A save that cannot move an existing file aside writes nothing. If any file fails to write, every file is renamed back from the `~` copy this save made, and a sidecar the save created is deleted. The tool result then sets `isError`, and the JSON adds `error`, `restored`, `removed` (the created files it deleted) and `failed` (`file` and `error` for each). A successful save leaves no `~` file, and an MCP save never writes to `backups/`. |
 | `house_manage` | create / update / delete / set_exit / assign_tiles / unassign_tiles |
 | `town_manage` | create / update / delete (refuses to orphan houses unless forced) |
 | `waypoint_manage` | create / move / delete |
@@ -293,8 +293,9 @@ app.refresh()
   call that is still queued, for example behind a modal dialog that keeps the
   GUI thread from draining its queue. Once a handler is running, the worker
   waits for it with no limit, so a modal dialog the handler opens blocks the
-  call until someone closes it. The save path's failure popup
-  (`Editor::saveMap`) is one such modal.
+  call until someone closes it. `editor_action save` opens none: it skips the
+  failure popup in `Editor::saveMap`, and the sidecar writes run under
+  `wxLogNull`.
 - A call that times out, or is still queued when the server is stopped, is
   cancelled and never runs later (a client retry would otherwise apply an edit
   twice), and the write permission is re-checked when a call actually starts.
