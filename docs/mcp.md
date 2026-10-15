@@ -293,7 +293,7 @@ path (`/mnt/d/maps/world.otbm`).
 
 | Command | Effect |
 | --- | --- |
-| `hold <file>` | Opens `<file>` from Windows with `FileShare None` until `release` or `--timeout` seconds (default 600). |
+| `hold <file>` | Opens `<file>` from Windows with `FileShare None` until `release` or `--timeout` seconds (default 600, at most 2147483). |
 | `release <file>` | Stops the holder and confirms Windows can open the file again. |
 | `readonly <file> on\|off` | Sets or clears the Windows read-only attribute. Running it twice is safe. |
 | `evidence <file>` | Prints `~` files next to the map, `backups/`, `git status --porcelain` and `git diff --summary` as a fenced block to paste into the issue. |
@@ -304,6 +304,9 @@ uncommitted changes, so the evidence shows only what the save did. Pass
 after the first save in case 3. `release`, `readonly off` and `evidence` always
 run. The script exits non-zero with a message when it runs outside WSL or
 cannot find `powershell.exe`.
+
+Collect each case's evidence, then restore the checkout with `git restore .`
+and delete any `~` files, so the next `hold` or `readonly on` starts clean.
 
 The cases, in order:
 

@@ -5,6 +5,8 @@
 set -euo pipefail
 
 readonly default_timeout=600
+# Windows PowerShell's Start-Sleep -Seconds sleeps for at most int.MaxValue milliseconds.
+readonly max_timeout=2147483
 # Test seam: tests/tools/test_windows_save_checks.sh points this at a fake /proc.
 readonly proc_root=${WINDOWS_SAVE_CHECKS_PROC:-/proc}
 readonly state_root=${WINDOWS_SAVE_CHECKS_STATE:-${XDG_STATE_HOME:-${HOME}/.local/state}/windows-save-checks}
@@ -30,7 +32,7 @@ Options:
   --allow-dirty             Run `hold` and `readonly on` even when the file's git checkout
                             has uncommitted changes.
   --timeout <seconds>       How long `hold` keeps the file open without a `release`.
-                            Default 600.
+                            Default 600, at most 2147483.
   -h, --help                Show this help.
 
 `hold` and `readonly on` refuse to start while the checkout has uncommitted changes, so the
@@ -101,8 +103,11 @@ ps_encode() {
   printf "\$ProgressPreference = 'SilentlyContinue'\n%s" "$1" | iconv -f UTF-8 -t UTF-16LE | base64 -w0
 }
 
+# Every powershell.exe this script starts takes these flags, then the output of ps_encode.
+readonly ps_flags=(-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand)
+
 ps_run() {
-  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "$(ps_encode "$1")"
+  powershell.exe "${ps_flags[@]}" "$(ps_encode "$1")"
 }
 
 checkout_of() {
@@ -141,6 +146,11 @@ start_time_of() {
   printf '%s\n' "${fields[19]}"
 }
 
+# Prints the Windows pid from the `held` line of a holder's log.
+windows_pid_of() {
+  sed -n 's/^held \([0-9]*\).*/\1/p' "$1" | tr -d '\r'
+}
+
 # True while the holder this script started still runs.
 holder_alive() {
   local dir=$1 started
@@ -167,8 +177,14 @@ cmd_hold() {
   : >"${log}"
 
   # ReadWrite first, as the editor's own handles would ask for; a read-only file only opens
-  # for Read. Either way FileShare None makes every other open, rename and delete fail.
+  # for Read. Either way FileShare None makes every other open, rename and delete fail. The
+  # timeout check runs before the open, so nothing after `held` can fail before the sleep.
   script="\$path = $(ps_quote "${windows}")
+\$seconds = ${timeout}
+if (\$seconds -gt ${max_timeout}) {
+  [Console]::Out.WriteLine('error Start-Sleep cannot wait ' + \$seconds + ' seconds')
+  exit 1
+}
 try {
   \$stream = [System.IO.File]::Open(\$path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
 } catch {
@@ -182,15 +198,14 @@ try {
 [Console]::Out.WriteLine('held ' + \$PID)
 [Console]::Out.Flush()
 try {
-  Start-Sleep -Seconds ${timeout}
+  Start-Sleep -Seconds \$seconds
   [Console]::Out.WriteLine('timeout')
 } finally {
   \$stream.Dispose()
 }"
 
   # setsid: the holder outlives this script and the caller's process group.
-  setsid powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
-    -EncodedCommand "$(ps_encode "${script}")" >"${log}" 2>&1 </dev/null &
+  setsid powershell.exe "${ps_flags[@]}" "$(ps_encode "${script}")" >"${log}" 2>&1 </dev/null &
   pid=$!
   printf '%s\n' "${pid}" >"${dir}/pid"
   start_time_of "${pid}" >"${dir}/start" || true
@@ -199,7 +214,7 @@ try {
   for ((waited = 0; waited < 300; waited++)); do
     if grep -q '^held ' "${log}"; then
       printf 'held %s for up to %ss (windows pid %s); run release to free it\n' \
-        "${windows}" "${timeout}" "$(sed -n 's/^held \([0-9]*\).*/\1/p' "${log}" | tr -d '\r')"
+        "${windows}" "${timeout}" "$(windows_pid_of "${log}")"
       return 0
     fi
     if ! holder_alive "${dir}"; then
@@ -226,7 +241,7 @@ cmd_release() {
     return 0
   fi
   if holder_alive "${dir}"; then
-    windows_pid=$(sed -n 's/^held \([0-9]*\).*/\1/p' "${dir}/log" | tr -d '\r')
+    windows_pid=$(windows_pid_of "${dir}/log")
   fi
 
   # Stop only the PowerShell this script started: once the holder exits, Windows may hand its
@@ -372,6 +387,9 @@ while (($# > 0)); do
   shift
 done
 [[ "${timeout}" =~ ^[1-9][0-9]*$ ]] || usage_error "--timeout takes a whole number of seconds, not '${timeout}'"
+# The length check comes first, because bash arithmetic wraps a number past 2^63 - 1.
+((${#timeout} <= ${#max_timeout} && timeout <= max_timeout)) ||
+  usage_error "--timeout is at most ${max_timeout} seconds, the longest Windows PowerShell sleeps"
 ((${#args[@]} > 0)) || usage_error "no command given"
 
 command=${args[0]}

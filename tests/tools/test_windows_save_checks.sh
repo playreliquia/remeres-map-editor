@@ -187,7 +187,7 @@ test_windows_save_checks_hold_then_release_frees_file() {
   local held released holder
   held=$(run_script --timeout 30 hold 'D:\maps\world-house.xml')
   expect_contains "${held}" "held D:\maps\world-house.xml for up to 30s (windows pid 4242)"
-  expect_contains "$(<"${sandbox}/stub/scripts")" "Start-Sleep -Seconds 30"
+  expect_contains "$(<"${sandbox}/stub/scripts")" "\$seconds = 30"
   holder=$(<"${sandbox}/stub/holder")
   kill -0 "${holder}" 2>/dev/null || fail "the holder is not running after hold"
 
@@ -246,6 +246,28 @@ test_windows_save_checks_evidence_clean_checkout_reports_none() {
   expect_contains "${out}" "backups/: absent"
   expect_contains "${out}" $'git status --porcelain:\n  clean'
   expect_contains "${out}" $'git diff --summary:\n  no mode changes'
+}
+
+test_windows_save_checks_hold_oversized_timeout_is_rejected() {
+  make_checkout
+  local timeout err status
+  # One past the Start-Sleep limit, and one past what bash arithmetic holds.
+  for timeout in 2147484 99999999999999999999; do
+    status=0
+    err=$(run_script --timeout "${timeout}" hold 'D:\maps\world-house.xml' 2>&1 >/dev/null) || status=$?
+    ((status == 2)) || fail "--timeout ${timeout}: exit ${status}, expected 2"
+    expect_contains "${err}" "--timeout is at most 2147483 seconds"
+  done
+  [[ ! -e "${sandbox}/stub/scripts" ]] || fail "powershell.exe ran despite the oversized timeout"
+}
+
+test_windows_save_checks_hold_largest_timeout_is_accepted() {
+  make_checkout
+  local held
+  held=$(run_script --timeout 2147483 hold 'D:\maps\world-house.xml')
+  run_script release 'D:\maps\world-house.xml' >/dev/null
+  expect_contains "${held}" "for up to 2147483s"
+  expect_contains "$(<"${sandbox}/stub/scripts")" "\$seconds = 2147483"
 }
 
 test_windows_save_checks_unknown_command_exits_with_usage_error() {
