@@ -45,6 +45,10 @@ npm.shell_out = true
 
 [env]
 VCPKG_ROOT = "{{config_root}}/.vcpkg"
+# vcpkg hashes the CMake and PowerShell versions it runs into every package ABI. Left to itself it
+# takes the runner image's CMake, so an image update renamed every cached package. The versions
+# pinned in the vcpkg baseline keep the ABI stable across images and machines.
+VCPKG_FORCE_DOWNLOADED_BINARIES = "1"
 # Without these, ccache misses on every translation unit that uses a precompiled header.
 CCACHE_SLOPPINESS = "pch_defines,time_macros,include_file_mtime,include_file_ctime"
 
