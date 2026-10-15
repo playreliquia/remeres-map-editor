@@ -1,3 +1,12 @@
+# Changelog
+
+## 0.1.0 (2026-10-15)
+
+
+### Features
+
+* **mcp:** merge upstream mcp server (opentibiabr[#209](https://github.com/playreliquia/remeres-map-editor/issues/209)) ([#17](https://github.com/playreliquia/remeres-map-editor/issues/17)) ([64a7003](https://github.com/playreliquia/remeres-map-editor/commit/64a700305a4731c6c882ff3419b6454a40a36977))
+
 #### 3.5
 
 Features:
