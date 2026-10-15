@@ -268,6 +268,9 @@ reuses the editor's existing scripting API (`source/lua/`), so anything the
 Script Manager can do is reachable — useful for procedural generation, where
 the `noise`, `geo` and `algo` modules already do the heavy lifting. Wrap edits
 in `app.transaction("name", function() ... end)` so they land as one undo step.
+If the body errors or hits the 20 second limit, the transaction rolls back its
+edits, adds no undo step and re-raises the error, so `run_lua` returns
+`ok: false`. A nested `app.transaction` raises `Transaction already in progress`.
 
 ```lua
 app.transaction("MCP edit", function()
