@@ -52,7 +52,11 @@ vcproj/Installer/Beta Release/
 vcproj/Installer/Debug/
 vcproj/Installer/Release/
 vcpkg_installed/
-.vscode/
+# The shared F5 debug setup is committed; personal VS Code settings stay ignored.
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 *.filters
 *.users
 

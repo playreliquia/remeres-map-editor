@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug editor (linux-debug, gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/canary-map-editor-debug",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build:dev"
+    },
+    {
+      "name": "Debug editor (windows-debug, msvc)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/canary-map-editor-debug-x64.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "console": "integratedTerminal",
+      "preLaunchTask": "build:dev"
+    }
+  ]
+}

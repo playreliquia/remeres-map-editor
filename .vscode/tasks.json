@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build:dev",
+      "detail": "mise run build:dev: the <os>-debug preset, with the executable in the repository root",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "build:dev"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "base": "$gcc",
+        "fileLocation": ["autoDetect", "${workspaceFolder}/build/linux-debug"]
+      },
+      "windows": {
+        "options": {
+          "cwd": "${workspaceFolder}",
+          "shell": {
+            "executable": "C:\\Program Files\\Git\\bin\\bash.exe",
+            "args": ["-lc"]
+          }
+        },
+        "problemMatcher": {
+          "base": "$msCompile",
+          "fileLocation": ["autoDetect", "${workspaceFolder}/build/windows-debug"]
+        }
+      }
+    }
+  ]
+}
