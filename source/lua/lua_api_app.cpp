@@ -365,6 +365,7 @@ namespace LuaAPI {
 			if (!result.valid()) {
 				sol::object errorObject(result.lua_state(), result.stack_index());
 				trans.rollback();
+				g_gui.RefreshView();
 				return { false, errorObject };
 			}
 			trans.commit();
