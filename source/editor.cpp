@@ -447,14 +447,15 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog) {
 			std::string zones_filename = backup_path + nstr(converter.GetName());
 			std::rename(backup_zones.c_str(), std::string(zones_filename + "." + date.str() + ".xml").c_str());
 		}
-	} else {
-		// Delete the temporary files
-		std::remove(backup_otbm.c_str());
-		std::remove(backup_house.c_str());
-		std::remove(backup_spawn.c_str());
-		std::remove(backup_spawn_npc.c_str());
-		std::remove(backup_zones.c_str());
 	}
+
+	// Delete the temporary files. After a backup move this only catches a rename
+	// that failed, such as a collision in backups/, so no ~ file outlives a save.
+	std::remove(backup_otbm.c_str());
+	std::remove(backup_house.c_str());
+	std::remove(backup_spawn.c_str());
+	std::remove(backup_spawn_npc.c_str());
+	std::remove(backup_zones.c_str());
 
 	deleteOldBackups(map_path + "backups/");
 
