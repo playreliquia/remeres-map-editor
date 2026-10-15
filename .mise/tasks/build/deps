@@ -5,6 +5,7 @@
 # an install success. The configure in `build` then finds every package installed.
 set -euo pipefail
 
+: "${VCPKG_ROOT:?set in .mise/config.toml}"
 # shellcheck source=.mise/lib/preset.sh
 source .mise/lib/preset.sh
 # The <os>-release preset's triplets in CMakePresets.json.

@@ -1,0 +1,45 @@
+name: Release
+
+# release-please keeps one release pull request open with the next version and its notes,
+# prepended to CHANGELOG.md. Merging it tags the commit `v<version>` and writes the GitHub
+# release; publish.yml then builds the tag and attaches the packages. The fork versions itself
+# apart from upstream, from 0.1.0 (release-please-config.json), and stays below 1.0.0 on a
+# breaking change; the maintainer cuts 1.0.0 with a `Release-As: 1.0.0` footer.
+#
+# Runs as the org automation App, never GITHUB_TOKEN: resources created with the default
+# token trigger no workflows, so the release pull request would get no ci run and the tag
+# would not start publish.yml.
+"on":
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        id: app
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+          # The App holds more (Renovate shares it); this token is narrowed to this repository
+          # and to what release-please needs.
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7  # v5.0.0
+        with:
+          token: ${{ steps.app.outputs.token }}
+          target-branch: ${{ github.ref_name }}

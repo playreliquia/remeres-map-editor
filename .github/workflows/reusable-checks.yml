@@ -15,12 +15,13 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup reviewdog
-        uses: reviewdog/action-setup@v1.5.0
+        uses: reviewdog/action-setup@d8a7baabd7f3e8544ee4dbde3ee41d0011c3a93f  # v1.5.0
 
       - name: Setup dependencies
         run: |
@@ -28,7 +29,7 @@ jobs:
           sudo apt-get install -y clang-format-17 cppcheck libxml2-utils yamllint
 
       - name: Run clang-format lint
-        uses: DoozyX/clang-format-lint-action@v0.20
+        uses: DoozyX/clang-format-lint-action@bcb4eb2cb0d707ee4f3e5cc3b456eb075f12cf73  # v0.20
         with:
           source: "source"
           extensions: "cpp,hpp,h"

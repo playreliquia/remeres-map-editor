@@ -20,3 +20,12 @@ spaces_around_brackets = none
 [.travis.yml]
 indent_style = space
 indent_size = 2
+
+# The fork's tooling files indent with spaces, as YAML must. The editorconfig-checker hook in
+# .pre-commit-config.yaml checks them, and shfmt reads the shell keys.
+[{.github/**,.vscode/**,.mise/**,.config/**,cmake/triplets/**,docs/agents/**,docs/building/README.md,.pre-commit-config.yaml,.renovaterc.json5,release-please-config.json,.release-please-manifest.json,mise.lock}]
+indent_style = space
+indent_size = 2
+
+[{.mise/tasks/**,.mise/lib/**}]
+switch_case_indent = true

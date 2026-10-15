@@ -28,7 +28,10 @@
         },
         "problemMatcher": {
           "base": "$msCompile",
-          "fileLocation": ["autoDetect", "${workspaceFolder}/build/windows-debug"]
+          "fileLocation": [
+            "autoDetect",
+            "${workspaceFolder}/build/windows-debug"
+          ]
         }
       }
     }
