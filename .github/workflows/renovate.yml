@@ -111,17 +111,24 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
           persist-credentials: false
-          sparse-checkout: .github
+          sparse-checkout: |
+            .github
+            .renovaterc.json5
 
+      # The pull request's .renovaterc.json5 goes in as the global config, and Renovate reads
+      # no repository config. Merging it into main's config (useBaseBranchConfig) fails while
+      # main has none, as on the pull request that adds it.
       - uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d  # v46.3.7
         with:
           renovate-version: latest
           token: ${{ secrets.GITHUB_TOKEN }}
+          configurationFile: .renovaterc.json5
         env:
           LOG_LEVEL: debug
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_BASE_BRANCH_PATTERNS: ${{ github.head_ref }}
-          RENOVATE_USE_BASE_BRANCH_CONFIG: merge
+          RENOVATE_REQUIRE_CONFIG: ignored
+          RENOVATE_ONBOARDING: "false"
           RENOVATE_DRY_RUN: full
           RENOVATE_PLATFORM: github
           RENOVATE_ALLOWED_COMMANDS: '["^mise lock [A-Za-z0-9:@/._-]+$"]'
