@@ -98,10 +98,14 @@
       automerge: true,
     },
     {
-      description: "The mise binary the workflows install",
+      // mise versions by date, so every release is a patch and one ships most days. The
+      // monthly window takes the newest release that has cleared the release age, instead
+      // of a PR per release. renovate.yml runs at 02:23 UTC, inside the window.
+      description: "The mise binary the workflows install, once a month",
       matchDepNames: ["jdx/mise"],
-      groupName: "mise tools",
+      groupName: "mise",
       automerge: true,
+      schedule: ["before 6am on the first day of the month"],
     },
     {
       // The image renovate.yml runs and the config validator the lint hook runs move together,
