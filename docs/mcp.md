@@ -117,7 +117,7 @@ first, then zoom in.
 | `house_list` / `house_get` | Houses, optionally by town or name; `house_get` includes every tile. |
 | `town_list` | Towns with ids and temple positions. |
 | `waypoint_list` | Waypoints, optionally restricted to a region. |
-| `zone_list` | Zone ids and names. |
+| `zone_list` | Zone ids and names, optionally filtered by a `name` substring. With `bounds: true`, each zone also returns `tiles` (its non-empty tiles, counted as `map_find` counts them) and the `from`/`to` box around them; a zone with no tiles returns `tiles: 0` and no box. `bounds` walks the whole map in one pass, so it costs as much as a whole-map `map_find`. |
 | `spawn_list` | Monster and npc spawns with radius and the creatures inside. |
 | `monster_types_list` / `npc_types_list` | Which creature names this installation can place. |
 
