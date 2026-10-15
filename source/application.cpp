@@ -38,6 +38,7 @@
 #include "lua/lua_script_manager.h"
 #include "mcp/mcp_server.h"
 #include "mcp/mcp_window.h"
+#include "utf8_path.h"
 
 #include "../brushes/icon/rme_icon.xpm"
 
@@ -222,55 +223,60 @@ bool Application::OnInit() {
 	FileName save_failed_file = GUI::GetLocalDataDirectory();
 	save_failed_file.SetName(".saving.txt");
 	if (save_failed_file.FileExists()) {
-		std::ifstream f(nstr(save_failed_file.GetFullPath()).c_str(), std::ios::in);
+		const std::filesystem::path run_file = utf8Path(nstr(save_failed_file.GetFullPath()));
 
-		std::string backup_otbm, backup_house, backup_spawn, backup_spawn_npc;
-
-		getline(f, backup_otbm);
-		getline(f, backup_house);
-		getline(f, backup_spawn);
-		getline(f, backup_spawn_npc);
+		// One line per file the save replaced, map first: its ~ copy, or empty.
+		std::vector<std::string> backups;
+		{
+			std::ifstream f(run_file, std::ios::in);
+			std::string line;
+			while (std::getline(f, line)) {
+				if (!line.empty() && line.back() == '~') {
+					backups.push_back(line);
+				} else {
+					backups.emplace_back();
+				}
+			}
+		}
 
 		// Remove the file
-		f.close();
-		std::remove(nstr(save_failed_file.GetFullPath()).c_str());
+		std::error_code ec;
+		std::filesystem::remove(run_file, ec);
 
 		// Query file retrieval if possible
-		if (!backup_otbm.empty()) {
-			long ret = g_gui.PopupDialog(
-				"Editor Crashed",
-				wxString(
-					"IMPORTANT! THE EDITOR CRASHED WHILE SAVING!\n\n"
-					"Do you want to recover the lost map? (it will be opened immediately):\n"
-				) << wxstr(backup_otbm)
-				  << "\n"
-				  << wxstr(backup_house) << "\n"
-				  << wxstr(backup_spawn) << "\n"
-				  << wxstr(backup_spawn_npc) << "\n",
-				wxYES | wxNO
+		if (std::ranges::any_of(backups, [](const std::string &backup) { return !backup.empty(); })) {
+			wxString message(
+				"IMPORTANT! A MAP SAVE DID NOT FINISH!\n\n"
+				"The editor crashed while saving, or could not put the files back after a failed save.\n"
+				"Do you want to recover these files? (a recovered map is opened immediately):\n"
 			);
+			for (const std::string &backup : backups) {
+				if (!backup.empty()) {
+					message << wxstr(backup) << "\n";
+				}
+			}
+			long ret = g_gui.PopupDialog("Editor Crashed", message, wxYES | wxNO);
 
 			if (ret == wxID_YES) {
 				// Recover if the user so wishes
-				std::remove(backup_otbm.substr(0, backup_otbm.size() - 1).c_str());
-				std::rename(backup_otbm.c_str(), backup_otbm.substr(0, backup_otbm.size() - 1).c_str());
-
-				if (!backup_house.empty()) {
-					std::remove(backup_house.substr(0, backup_house.size() - 1).c_str());
-					std::rename(backup_house.c_str(), backup_house.substr(0, backup_house.size() - 1).c_str());
-				}
-				if (!backup_spawn.empty()) {
-					std::remove(backup_spawn.substr(0, backup_spawn.size() - 1).c_str());
-					std::rename(backup_spawn.c_str(), backup_spawn.substr(0, backup_spawn.size() - 1).c_str());
-				}
-				if (!backup_spawn_npc.empty()) {
-					std::remove(backup_spawn_npc.substr(0, backup_spawn_npc.size() - 1).c_str());
-					std::rename(backup_spawn_npc.c_str(), backup_spawn_npc.substr(0, backup_spawn_npc.size() - 1).c_str());
+				for (const std::string &backup : backups) {
+					if (backup.empty()) {
+						continue;
+					}
+					const std::filesystem::path target = utf8Path(std::string_view(backup).substr(0, backup.size() - 1));
+					std::filesystem::remove(target, ec);
+					std::filesystem::rename(utf8Path(backup), target, ec);
+					if (ec) {
+						spdlog::error("Could not recover {}: {}", backup, ec.message());
+					}
 				}
 
 				// Load the map
-				g_gui.LoadMap(wxstr(backup_otbm.substr(0, backup_otbm.size() - 1)));
-				return true;
+				if (!backups.front().empty()) {
+					const std::string &map_backup = backups.front();
+					g_gui.LoadMap(wxstr(map_backup.substr(0, map_backup.size() - 1)));
+					return true;
+				}
 			}
 		}
 	}
