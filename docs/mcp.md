@@ -305,6 +305,9 @@ after the first save in case 3. `release`, `readonly off` and `evidence` always
 run. The script exits non-zero with a message when it runs outside WSL or
 cannot find `powershell.exe`.
 
+Collect each case's evidence, then restore the checkout with `git restore .`
+and delete any `~` files, so the next `hold` or `readonly on` starts clean.
+
 The cases, in order:
 
 1. **Happy path.** Edit and run `editor_action save`. Expect `saved: true` and
