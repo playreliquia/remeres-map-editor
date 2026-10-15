@@ -4136,21 +4136,23 @@ namespace {
 	}
 #endif
 
-	bool saveXmlFileIfChanged(const pugi::xml_document &doc, const wxString &filepath) {
+	IOMapOTBM::SidecarWrite saveXmlFileIfChanged(const pugi::xml_document &doc, const wxString &filepath) {
+		using SidecarWrite = IOMapOTBM::SidecarWrite;
+
 		std::ostringstream stream;
 		doc.save(stream, "\t", pugi::format_default, pugi::encoding_utf8);
 		const std::string content = stream.str();
 
 		if (fileMatchesXmlContent(filepath, content)) {
-			return true;
+			return SidecarWrite::Unchanged;
 		}
 
 		const wxString backupPath = filepath + "~";
 		if (!wxFileExists(filepath) && fileMatchesXmlContent(backupPath, content)) {
-			return wxRenameFile(backupPath, filepath, false);
+			return wxRenameFile(backupPath, filepath, false) ? SidecarWrite::Unchanged : SidecarWrite::Failed;
 		}
 
-		return writeContentToFile(filepath, content);
+		return writeContentToFile(filepath, content) ? SidecarWrite::Written : SidecarWrite::Failed;
 	}
 
 	struct TileAreaSaveState {
@@ -5825,17 +5827,32 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 		return false;
 	}
 
+	sidecarSaveReport_ = {};
+	const auto recordSidecar = [this](const std::string &file, SidecarWrite outcome) {
+		if (outcome == SidecarWrite::Written) {
+			sidecarSaveReport_.written.push_back(file);
+		} else if (outcome == SidecarWrite::Failed) {
+			sidecarSaveReport_.failed.push_back(file);
+		}
+	};
+
 	g_gui.SetLoadDone(99, "Saving monster spawns...");
-	saveSpawns(map, identifier);
+	recordSidecar(map.spawnmonsterfile, saveSpawns(map, identifier));
 
 	g_gui.SetLoadDone(99, "Saving houses...");
-	saveHouses(map, identifier);
+	recordSidecar(map.housefile, saveHouses(map, identifier));
 
 	g_gui.SetLoadDone(99, "Saving zones...");
-	saveZones(map, identifier);
+	recordSidecar(map.zonefile, saveZones(map, identifier));
 
 	g_gui.SetLoadDone(99, "Saving npcs spawns...");
-	saveSpawnsNpc(map, identifier);
+	recordSidecar(map.spawnnpcfile, saveSpawnsNpc(map, identifier));
+
+	// The caller rolls every file back, so the .otbm never disagrees with its sidecars.
+	if (!sidecarSaveReport_.failed.empty()) {
+		error("Could not write %s", sidecarSaveReport_.failed.front().c_str());
+		return false;
+	}
 	return true;
 }
 
@@ -5936,7 +5953,7 @@ bool IOMapOTBM::saveMap(Map &map, NodeFileWriteHandle &f) {
 	return true;
 }
 
-bool IOMapOTBM::saveSpawns(Map &map, const FileName &dir) {
+IOMapOTBM::SidecarWrite IOMapOTBM::saveSpawns(Map &map, const FileName &dir) {
 	wxString filepath = dir.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME);
 	filepath += wxString(map.spawnmonsterfile.c_str(), wxConvUTF8);
 
@@ -5945,7 +5962,7 @@ bool IOMapOTBM::saveSpawns(Map &map, const FileName &dir) {
 	if (saveSpawns(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return false;
+	return SidecarWrite::Failed;
 }
 
 bool IOMapOTBM::saveSpawns(Map &map, pugi::xml_document &doc) {
@@ -6013,7 +6030,7 @@ bool IOMapOTBM::saveSpawns(Map &map, pugi::xml_document &doc) {
 	return true;
 }
 
-bool IOMapOTBM::saveHouses(Map &map, const FileName &dir) {
+IOMapOTBM::SidecarWrite IOMapOTBM::saveHouses(Map &map, const FileName &dir) {
 	wxString filepath = dir.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME);
 	filepath += wxString(map.housefile.c_str(), wxConvUTF8);
 
@@ -6022,7 +6039,7 @@ bool IOMapOTBM::saveHouses(Map &map, const FileName &dir) {
 	if (saveHouses(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return false;
+	return SidecarWrite::Failed;
 }
 
 bool IOMapOTBM::saveHouses(Map &map, pugi::xml_document &doc) {
@@ -6965,7 +6982,7 @@ bool IOMapOTBM::saveCyclopediaMapData(Map &map, const FileName &dir, const Cyclo
 	return true;
 }
 
-bool IOMapOTBM::saveZones(Map &map, const FileName &dir) {
+IOMapOTBM::SidecarWrite IOMapOTBM::saveZones(Map &map, const FileName &dir) {
 	wxString filepath = dir.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME);
 	filepath += wxString(map.zonefile.c_str(), wxConvUTF8);
 
@@ -6974,7 +6991,7 @@ bool IOMapOTBM::saveZones(Map &map, const FileName &dir) {
 	if (saveZones(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return false;
+	return SidecarWrite::Failed;
 }
 
 bool IOMapOTBM::saveZones(Map &map, pugi::xml_document &doc) {
@@ -6998,7 +7015,7 @@ bool IOMapOTBM::saveZones(Map &map, pugi::xml_document &doc) {
 	return true;
 }
 
-bool IOMapOTBM::saveSpawnsNpc(Map &map, const FileName &dir) {
+IOMapOTBM::SidecarWrite IOMapOTBM::saveSpawnsNpc(Map &map, const FileName &dir) {
 	wxString filepath = dir.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME);
 	filepath += wxString(map.spawnnpcfile.c_str(), wxConvUTF8);
 
@@ -7007,7 +7024,7 @@ bool IOMapOTBM::saveSpawnsNpc(Map &map, const FileName &dir) {
 	if (saveSpawnsNpc(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return false;
+	return SidecarWrite::Failed;
 }
 
 bool IOMapOTBM::saveSpawnsNpc(Map &map, pugi::xml_document &doc) {

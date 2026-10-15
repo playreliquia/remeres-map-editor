@@ -32,6 +32,21 @@ class LiveClient;
 class LiveServer;
 class LiveSocket;
 
+struct MapSaveResult {
+	struct FailedFile {
+		std::string file;
+		std::string error;
+	};
+
+	bool saved = false;
+	std::string error;
+	// File names beside the map, never paths: the sidecars a successful save wrote,
+	// and on failure the files renamed back from their ~ copies.
+	std::vector<std::string> sidecars;
+	std::vector<std::string> restored;
+	std::vector<FailedFile> failed;
+};
+
 class Editor {
 public:
 	Editor(CopyBuffer &copybuffer, LiveClient* client);
@@ -75,7 +90,7 @@ public: // Functions
 	void clearChanges();
 
 	// Map handling
-	void saveMap(FileName filename, bool showdialog); // "" means default filename
+	MapSaveResult saveMap(FileName filename, bool showdialog); // "" means default filename
 
 	Map &getMap() noexcept {
 		return map;

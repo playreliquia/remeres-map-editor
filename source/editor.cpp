@@ -232,7 +232,8 @@ void Editor::clearChanges() {
 	map.clearChanges();
 }
 
-void Editor::saveMap(FileName filename, bool showdialog) {
+MapSaveResult Editor::saveMap(FileName filename, bool showdialog) {
+	MapSaveResult result;
 	std::string savefile = filename.GetFullPath().mb_str(wxConvUTF8).data();
 	bool save_as = false;
 	bool save_otgz = false;
@@ -345,39 +346,42 @@ void Editor::saveMap(FileName filename, bool showdialog) {
 
 		// Check for errors...
 		if (!success) {
-			// Rename the temporary backup files back to their previous names
-			if (!backup_otbm.empty()) {
-				converter.SetFullName(wxstr(savefile));
-				std::string otbm_filename = map_path + nstr(converter.GetName());
-				std::rename(backup_otbm.c_str(), std::string(otbm_filename + (save_otgz ? ".otgz" : ".otbm")).c_str());
+			result.error = nstr(mapsaver.getError());
+			const std::vector<std::string> &failedSidecars = mapsaver.getLastSidecarSaveReport().failed;
+			if (failedSidecars.empty()) {
+				result.failed.push_back({ map.name, result.error });
+			}
+			for (const std::string &sidecar : failedSidecars) {
+				result.failed.push_back({ sidecar, "could not write" });
 			}
 
-			if (!backup_house.empty()) {
-				converter.SetFullName(wxstr(map.housefile));
-				std::string house_filename = map_path + nstr(converter.GetName());
-				std::rename(backup_house.c_str(), std::string(house_filename + ".xml").c_str());
-			}
+			// Rename the temporary backup files back to their previous names. A failed
+			// write may have left a partial file, and std::rename cannot replace an
+			// existing file on Windows, so the target is removed first.
+			const auto restoreBackup = [&result](const std::string &backup, const std::string &target, const std::string &name) {
+				if (backup.empty() || !wxFileExists(wxstr(backup))) {
+					return;
+				}
+				std::remove(target.c_str());
+				if (std::rename(backup.c_str(), target.c_str()) == 0) {
+					result.restored.push_back(name);
+				} else {
+					result.failed.push_back({ name, "could not restore it from " + backup });
+				}
+			};
 
-			if (!backup_spawn.empty()) {
-				converter.SetFullName(wxstr(map.spawnmonsterfile));
-				std::string spawn_filename = map_path + nstr(converter.GetName());
-				std::rename(backup_spawn.c_str(), std::string(spawn_filename + ".xml").c_str());
-			}
-
-			if (!backup_spawn_npc.empty()) {
-				converter.SetFullName(wxstr(map.spawnnpcfile));
-				std::string spawnnpc_filename = map_path + nstr(converter.GetName());
-				std::rename(backup_spawn_npc.c_str(), std::string(spawnnpc_filename + ".xml").c_str());
-			}
-
-			if (!backup_zones.empty()) {
-				converter.SetFullName(wxstr(map.zonefile));
-				std::string zones_filename = map_path + nstr(converter.GetName());
-				std::rename(backup_zones.c_str(), std::string(zones_filename + ".xml").c_str());
-			}
+			restoreBackup(backup_otbm, savefile, map.name);
+			restoreBackup(backup_house, map_path + map.housefile, map.housefile);
+			restoreBackup(backup_spawn, map_path + map.spawnmonsterfile, map.spawnmonsterfile);
+			restoreBackup(backup_spawn_npc, map_path + map.spawnnpcfile, map.spawnnpcfile);
+			restoreBackup(backup_zones, map_path + map.zonefile, map.zonefile);
 
 			// Display the error
-			g_gui.PopupDialog("Error", "Could not save, unable to open target for writing.", wxOK);
+			if (showdialog) {
+				g_gui.PopupDialog("Error", "Could not save, unable to open target for writing.", wxOK);
+			}
+		} else {
+			result.sidecars = mapsaver.getLastSidecarSaveReport().written;
 		}
 
 		// Remove temporary save runfile
@@ -388,7 +392,7 @@ void Editor::saveMap(FileName filename, bool showdialog) {
 
 		// If failure, don't run the rest of the function
 		if (!success) {
-			return;
+			return result;
 		}
 	}
 
@@ -455,6 +459,8 @@ void Editor::saveMap(FileName filename, bool showdialog) {
 	deleteOldBackups(map_path + "backups/");
 
 	clearChanges();
+	result.saved = true;
+	return result;
 }
 
 bool Editor::importMiniMap(FileName filename, int import, int import_x_offset, int import_y_offset, int import_z_offset) {
