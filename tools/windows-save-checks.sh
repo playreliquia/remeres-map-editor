@@ -103,8 +103,11 @@ ps_encode() {
   printf "\$ProgressPreference = 'SilentlyContinue'\n%s" "$1" | iconv -f UTF-8 -t UTF-16LE | base64 -w0
 }
 
+# Every powershell.exe this script starts takes these flags, then the output of ps_encode.
+readonly ps_flags=(-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand)
+
 ps_run() {
-  powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "$(ps_encode "$1")"
+  powershell.exe "${ps_flags[@]}" "$(ps_encode "$1")"
 }
 
 checkout_of() {
@@ -141,6 +144,11 @@ start_time_of() {
   stat=${stat##*) }
   read -r -a fields <<<"${stat}"
   printf '%s\n' "${fields[19]}"
+}
+
+# Prints the Windows pid from the `held` line of a holder's log.
+windows_pid_of() {
+  sed -n 's/^held \([0-9]*\).*/\1/p' "$1" | tr -d '\r'
 }
 
 # True while the holder this script started still runs.
@@ -197,8 +205,7 @@ try {
 }"
 
   # setsid: the holder outlives this script and the caller's process group.
-  setsid powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass \
-    -EncodedCommand "$(ps_encode "${script}")" >"${log}" 2>&1 </dev/null &
+  setsid powershell.exe "${ps_flags[@]}" "$(ps_encode "${script}")" >"${log}" 2>&1 </dev/null &
   pid=$!
   printf '%s\n' "${pid}" >"${dir}/pid"
   start_time_of "${pid}" >"${dir}/start" || true
@@ -207,7 +214,7 @@ try {
   for ((waited = 0; waited < 300; waited++)); do
     if grep -q '^held ' "${log}"; then
       printf 'held %s for up to %ss (windows pid %s); run release to free it\n' \
-        "${windows}" "${timeout}" "$(sed -n 's/^held \([0-9]*\).*/\1/p' "${log}" | tr -d '\r')"
+        "${windows}" "${timeout}" "$(windows_pid_of "${log}")"
       return 0
     fi
     if ! holder_alive "${dir}"; then
@@ -234,7 +241,7 @@ cmd_release() {
     return 0
   fi
   if holder_alive "${dir}"; then
-    windows_pid=$(sed -n 's/^held \([0-9]*\).*/\1/p' "${dir}/log" | tr -d '\r')
+    windows_pid=$(windows_pid_of "${dir}/log")
   fi
 
   # Stop only the PowerShell this script started: once the holder exits, Windows may hand its
