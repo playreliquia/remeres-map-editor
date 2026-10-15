@@ -52,6 +52,7 @@ jobs:
         run: mise run setup:vcpkg
 
       - name: Install vcpkg packages
+        id: deps
         run: mkdir -p .cache/vcpkg && mise run build:deps
 
       - name: Build
@@ -86,3 +87,4 @@ jobs:
         with:
           mode: save
           os: macos
+          installed: ${{ steps.deps.outcome == 'success' && 'build/macos-release/vcpkg_installed' || '' }}

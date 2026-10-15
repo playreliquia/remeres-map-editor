@@ -81,6 +81,7 @@ jobs:
 
       # The log feeds the push check below.
       - name: Install vcpkg packages
+        id: deps
         run: |
           set -euo pipefail
           mkdir -p .cache/vcpkg
@@ -140,3 +141,4 @@ jobs:
         with:
           mode: save
           os: windows
+          installed: ${{ steps.deps.outcome == 'success' && 'build/windows-release/vcpkg_installed' || '' }}
