@@ -13,6 +13,10 @@ name: Publish
 # To rebuild and republish a tag, dispatch this workflow with the tag as its ref (`Use workflow
 # from` in the UI, or `gh workflow run publish.yml --ref v0.1.0`). The reusable builds check out
 # the run's ref, so a dispatch from a branch is refused rather than publishing that branch.
+# A re-dispatch runs this workflow and the reusable builds as they were at the tag, not as
+# they are on main, so it retries a flaky run but cannot pick up a fix. `v*` tags cannot be
+# moved or deleted (#13): a publish that is broken at its tag is fixed by merging the fix and
+# cutting the next patch release.
 "on":
   push:
     tags:
