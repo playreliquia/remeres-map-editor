@@ -1,1 +1,4 @@
 text eol=lf
+# vcpkg hashes the triplet bytes into every package ABI, so a CRLF checkout on Windows
+# would miss the packages other repos built from the same triplet.
+cmake/triplets/*.cmake text eol=lf
