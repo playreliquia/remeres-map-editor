@@ -293,7 +293,7 @@ path (`/mnt/d/maps/world.otbm`).
 
 | Command | Effect |
 | --- | --- |
-| `hold <file>` | Opens `<file>` from Windows with `FileShare None` until `release` or `--timeout` seconds (default 600). |
+| `hold <file>` | Opens `<file>` from Windows with `FileShare None` until `release` or `--timeout` seconds (default 600, at most 2147483). |
 | `release <file>` | Stops the holder and confirms Windows can open the file again. |
 | `readonly <file> on\|off` | Sets or clears the Windows read-only attribute. Running it twice is safe. |
 | `evidence <file>` | Prints `~` files next to the map, `backups/`, `git status --porcelain` and `git diff --summary` as a fenced block to paste into the issue. |

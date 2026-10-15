@@ -5,6 +5,8 @@
 set -euo pipefail
 
 readonly default_timeout=600
+# Windows PowerShell's Start-Sleep -Seconds sleeps for at most int.MaxValue milliseconds.
+readonly max_timeout=2147483
 # Test seam: tests/tools/test_windows_save_checks.sh points this at a fake /proc.
 readonly proc_root=${WINDOWS_SAVE_CHECKS_PROC:-/proc}
 readonly state_root=${WINDOWS_SAVE_CHECKS_STATE:-${XDG_STATE_HOME:-${HOME}/.local/state}/windows-save-checks}
@@ -30,7 +32,7 @@ Options:
   --allow-dirty             Run `hold` and `readonly on` even when the file's git checkout
                             has uncommitted changes.
   --timeout <seconds>       How long `hold` keeps the file open without a `release`.
-                            Default 600.
+                            Default 600, at most 2147483.
   -h, --help                Show this help.
 
 `hold` and `readonly on` refuse to start while the checkout has uncommitted changes, so the
@@ -167,8 +169,14 @@ cmd_hold() {
   : >"${log}"
 
   # ReadWrite first, as the editor's own handles would ask for; a read-only file only opens
-  # for Read. Either way FileShare None makes every other open, rename and delete fail.
+  # for Read. Either way FileShare None makes every other open, rename and delete fail. The
+  # timeout check runs before the open, so nothing after `held` can fail before the sleep.
   script="\$path = $(ps_quote "${windows}")
+\$seconds = ${timeout}
+if (\$seconds -gt ${max_timeout}) {
+  [Console]::Out.WriteLine('error Start-Sleep cannot wait ' + \$seconds + ' seconds')
+  exit 1
+}
 try {
   \$stream = [System.IO.File]::Open(\$path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
 } catch {
@@ -182,7 +190,7 @@ try {
 [Console]::Out.WriteLine('held ' + \$PID)
 [Console]::Out.Flush()
 try {
-  Start-Sleep -Seconds ${timeout}
+  Start-Sleep -Seconds \$seconds
   [Console]::Out.WriteLine('timeout')
 } finally {
   \$stream.Dispose()
@@ -372,6 +380,9 @@ while (($# > 0)); do
   shift
 done
 [[ "${timeout}" =~ ^[1-9][0-9]*$ ]] || usage_error "--timeout takes a whole number of seconds, not '${timeout}'"
+# The length check comes first, because bash arithmetic wraps a number past 2^63 - 1.
+((${#timeout} <= ${#max_timeout} && timeout <= max_timeout)) ||
+  usage_error "--timeout is at most ${max_timeout} seconds, the longest Windows PowerShell sleeps"
 ((${#args[@]} > 0)) || usage_error "no command given"
 
 command=${args[0]}
