@@ -34,7 +34,7 @@ gitleaks = "8.30.1"
 # markdownlint-cli2 and prettier install through npm, so they need node.
 node = "24.21.0"
 markdownlint-cli2 = "0.23.3"
-prettier = "3.9.9"
+prettier = "3.9.10"
 # aqua: the github backend's linux archive has no `ec` binary.
 "aqua:editorconfig-checker/editorconfig-checker" = "3.11.3"
 
