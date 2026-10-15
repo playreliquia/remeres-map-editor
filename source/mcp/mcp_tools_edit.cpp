@@ -293,6 +293,7 @@ namespace mcp {
 				}
 				body["error"] = save.error;
 				body["restored"] = save.restored;
+				body["removed"] = save.removed;
 				body["failed"] = std::move(failed);
 
 				// A JSON body rather than an McpError, so the agent can read which files to check.

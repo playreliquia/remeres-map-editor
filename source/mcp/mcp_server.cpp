@@ -562,7 +562,8 @@ namespace mcp {
 			);
 
 			const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
-			log(LogLevel::Info, fmt::format("{} ok ({} ms)", name, elapsed.count()));
+			const bool failed = result.value("isError", false);
+			log(failed ? LogLevel::Error : LogLevel::Info, fmt::format("{} {} ({} ms)", name, failed ? "failed" : "ok", elapsed.count()));
 			return result;
 		} catch (const McpError &e) {
 			log(LogLevel::Error, fmt::format("{} failed: {}", name, e.what()));
