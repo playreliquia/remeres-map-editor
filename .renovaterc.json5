@@ -38,7 +38,8 @@
   customManagers: [
     {
       // A `# renovate: datasource=<ds> depName=<name>` comment on the line above a
-      // `KEY: value` or `KEY=value` line: the mise version in .github/actions/setup-mise.
+      // `KEY: value` or `KEY=value` line: the mise version in .github/actions/setup-mise, and
+      // the Renovate image in renovate.yml, whose value carries an `@sha256:` digest too.
       customType: "regex",
       managerFilePatterns: [
         "/^\\.github/workflows/.+\\.ya?ml$/",
@@ -46,7 +47,7 @@
         "/(^|/)\\.mise/.+$/",
       ],
       matchStrings: [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?(?::\\s|=)\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?[ \\t]*(?:#[^\\n]*)?\\n",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?(?::\\s|=)\\s*[\"']?(?<currentValue>[^\"'\\s@]+)(?:@(?<currentDigest>sha256:[0-9a-f]{64}))?[\"']?[ \\t]*(?:#[^\\n]*)?\\n",
       ],
     },
     {
@@ -100,6 +101,18 @@
       description: "The mise binary the workflows install",
       matchDepNames: ["jdx/mise"],
       groupName: "mise tools",
+      automerge: true,
+    },
+    {
+      // The image renovate.yml runs and the config validator the lint hook runs move together,
+      // so the hook always validates against the Renovate that reads the config. This rule
+      // comes after the pre-commit hooks rule and takes the validator out of that group.
+      description: "Renovate itself: the workflow's image and the validator hook",
+      matchDepNames: [
+        "ghcr.io/renovatebot/renovate",
+        "renovatebot/pre-commit-hooks",
+      ],
+      groupName: "renovate",
       automerge: true,
     },
     {

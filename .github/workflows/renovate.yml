@@ -14,8 +14,8 @@ name: Renovate
         default: info
         required: false
       version:
-        description: "Renovate version (default: latest)"
-        default: latest
+        description: "Renovate image tag to run instead of the pinned RENOVATE_VERSION, for example latest"
+        default: ""
         required: false
   schedule:
     - cron: "23 2 * * *"  # daily; off the hour, which GitHub drops under load
@@ -36,6 +36,12 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # The Renovate image both jobs run, by tag and digest. Renovate bumps it behind the three-day
+  # release age, in one group with the renovate-config-validator hook in .pre-commit-config.yaml.
+  # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
+  RENOVATE_VERSION: 44.142.0@sha256:e9c2dcbc5a6027e68755b98cccb10470da8f941d0fbfaa67c0d85b7e064025c7
 
 jobs:
   # The App's secrets reach only this job, which runs on push, schedule and dispatch, never on
@@ -77,7 +83,9 @@ jobs:
       # rewrite the root mise.lock with a tool bump.
       - uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d  # v46.3.7
         with:
-          renovate-version: ${{ inputs.version || 'latest' }}
+          # A dispatch with a version runs that tag; otherwise the pinned image.
+          renovate-image: ${{ inputs.version && 'ghcr.io/renovatebot/renovate' || format('ghcr.io/renovatebot/renovate:{0}', env.RENOVATE_VERSION) }}
+          renovate-version: ${{ inputs.version }}
           token: ${{ steps.app-token.outputs.token }}
         env:
           LOG_LEVEL: ${{ inputs.log_level || 'info' }}
@@ -120,7 +128,7 @@ jobs:
       # main has none, as on the pull request that adds it.
       - uses: renovatebot/github-action@230ce922b08968d0a4f6f70f295601daff09ef1d  # v46.3.7
         with:
-          renovate-version: latest
+          renovate-image: ghcr.io/renovatebot/renovate:${{ env.RENOVATE_VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
           configurationFile: .renovaterc.json5
         env:
