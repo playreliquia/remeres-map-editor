@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #MISE description="Configure and build the release editor"
+#MISE depends=["build:deps"]
 set -euo pipefail
 
 # shellcheck source=.mise/lib/preset.sh
 source .mise/lib/preset.sh
-# The same flags upstream's ci and Dockerfile pass: the executable lands in build/<preset>/bin
-# rather than the source root, and IPO stays off.
+# The executable lands in build/<preset>/bin rather than the source root, and IPO stays off,
+# as in upstream's ci and Dockerfile.
 cmake --preset "${os}-release" -DTOGGLE_BIN_FOLDER=ON -DOPTIONS_ENABLE_IPO=OFF
 cmake --build --preset "${os}-release"

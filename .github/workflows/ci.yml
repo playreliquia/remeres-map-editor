@@ -28,6 +28,8 @@ on:
       - ".reviewdog.yml"
       - ".github/workflows/**"
       - ".github/actions/**"
+      - ".mise/**"
+      - "mise.lock"
 
 permissions:
   contents: read
@@ -71,6 +73,9 @@ jobs:
               - "CMakeLists.txt"
               - "CMakePresets.json"
               - ".github/actions/vcpkg-cache/**"
+              - ".github/actions/setup-mise/**"
+              - ".mise/**"
+              - "mise.lock"
               - ".clang-format"
               - ".yamllint.yaml"
               - ".reviewdog.yml"

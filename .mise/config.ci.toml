@@ -5,10 +5,10 @@
 # The workflow installs the tools a job needs; a task must use those and never install more.
 task.run_auto_install = false
 
+# VCPKG_BINARY_SOURCES is the workflow's: it names the .cache/vcpkg directory the vcpkg-cache
+# action restores and, on Windows, the NuGet feed.
 [env]
-# ci persists these directories with actions/cache, keyed per OS. A job that sets
-# VCPKG_NUGET_SOURCE (the Windows build) also reads and writes the org's NuGet feed.
-VCPKG_BINARY_SOURCES = "clear;files,{{config_root}}/.cache/vcpkg,readwrite{{ get_env(name='VCPKG_NUGET_SOURCE', default='') }}"
+# The build workflows persist these directories with actions/cache, keyed per OS.
 CCACHE_DIR = "{{config_root}}/.cache/ccache"
 CCACHE_BASEDIR = "{{config_root}}"
 CCACHE_MAXSIZE = "1G"
