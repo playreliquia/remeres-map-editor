@@ -119,13 +119,16 @@
       },
     },
     {
-      // A new baseline moves every C++ dependency at once; the three builds rebuild every
-      // port against it before merge.
+      // A new baseline moves every C++ dependency at once; the builds rebuild every port
+      // against it before merge. It changes the shipped editor, so it lands as `fix(deps)`
+      // and release-please cuts a release for it.
       description: "vcpkg's builtin-baseline",
       matchDepNames: ["https://github.com/microsoft/vcpkg"],
       groupName: "vcpkg baseline",
       automerge: true,
       schedule: ["before 6am on monday"],
+      semanticCommitType: "fix",
+      semanticCommitScope: "deps",
     },
 
     // --- held versions -------------------------------------------------------------
