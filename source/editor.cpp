@@ -232,11 +232,32 @@ void Editor::clearChanges() {
 	map.clearChanges();
 }
 
+namespace {
+	// One file a save replaces, the map or a sidecar, and its ~ copy.
+	struct SaveFile {
+		std::string target;
+		std::string backup;
+		std::string name;
+		bool existed = false;
+		bool movedAside = false;
+	};
+
+	// Windows refuses to delete a read-only file, and renaming a read-only original
+	// leaves a read-only ~ copy, so the attribute is cleared first.
+	bool removeSaveFile(const std::string &path) {
+		std::error_code ec;
+		if (!fs::exists(path, ec)) {
+			return !ec;
+		}
+		fs::permissions(path, fs::perms::owner_write, fs::perm_options::add, ec);
+		return fs::remove(path, ec);
+	}
+}
+
 MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBackup) {
 	MapSaveResult result;
 	std::string savefile = filename.GetFullPath().mb_str(wxConvUTF8).data();
 	bool save_as = false;
-	bool save_otgz = false;
 
 	if (savefile.empty()) {
 		savefile = map.filename;
@@ -268,61 +289,82 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	converter.Assign(wxstr(savefile));
 	std::string map_path = nstr(converter.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME));
 
-	// Make temporary backups
-	// converter.Assign(wxstr(savefile));
-	std::string backup_otbm, backup_house, backup_spawn, backup_spawn_npc, backup_zones;
+	// The files this save replaces, in the order .saving.txt lists them.
+	std::vector<SaveFile> files;
+	files.push_back({ savefile, savefile + "~", nstr(converter.GetFullName()) });
+	if (converter.GetExt() != "otgz") {
+		for (const std::string* sidecar : { &map.housefile, &map.spawnmonsterfile, &map.spawnnpcfile, &map.zonefile }) {
+			const std::string target = map_path + *sidecar;
+			files.push_back({ target, target + "~", *sidecar });
+		}
+	}
 
-	if (converter.GetExt() == "otgz") {
-		save_otgz = true;
-		if (converter.FileExists()) {
-			backup_otbm = map_path + nstr(converter.GetName()) + ".otgz~";
-			std::remove(backup_otbm.c_str());
-			std::rename(savefile.c_str(), backup_otbm.c_str());
+	// Puts every file back as it was before the save: each ~ copy this save made is
+	// renamed back over whatever the write left, and a file the save created is removed.
+	const auto rollBack = [&result, &files]() {
+		for (const SaveFile &file : files) {
+			std::error_code ec;
+			if (file.movedAside) {
+				// An unchanged sidecar's ~ copy was already renamed back by the writer.
+				if (!fs::exists(file.backup, ec)) {
+					continue;
+				}
+				fs::rename(file.backup, file.target, ec);
+				if (ec) {
+					result.failed.push_back({ file.name, "could not restore it from " + file.backup + ": " + ec.message() });
+				} else {
+					result.restored.push_back(file.name);
+				}
+			} else if (!file.existed && fs::is_regular_file(file.target, ec)) {
+				if (removeSaveFile(file.target)) {
+					result.removed.push_back(file.name);
+				} else {
+					result.failed.push_back({ file.name, "could not remove the file this save created" });
+				}
+			}
 		}
-	} else {
-		if (converter.FileExists()) {
-			backup_otbm = map_path + nstr(converter.GetName()) + ".otbm~";
-			std::remove(backup_otbm.c_str());
-			std::rename(savefile.c_str(), backup_otbm.c_str());
+	};
+
+	// Make temporary backups. Nothing is written unless every existing file was
+	// moved aside, so a rollback only ever renames back a ~ copy this save made.
+	for (SaveFile &file : files) {
+		std::error_code ec;
+		file.existed = fs::exists(file.target, ec);
+	}
+	for (SaveFile &file : files) {
+		std::error_code ec;
+		if (!file.existed || !fs::is_regular_file(file.target, ec)) {
+			continue;
 		}
 
-		converter.SetFullName(wxstr(map.housefile));
-		if (converter.FileExists()) {
-			backup_house = map_path + nstr(converter.GetName()) + ".xml~";
-			std::remove(backup_house.c_str());
-			std::rename((map_path + map.housefile).c_str(), backup_house.c_str());
+		std::string reason;
+		if (!removeSaveFile(file.backup)) {
+			reason = "could not delete the old " + file.backup;
+		} else {
+			fs::rename(file.target, file.backup, ec);
+			if (!ec) {
+				file.movedAside = true;
+				continue;
+			}
+			reason = "could not rename it to " + file.backup + ": " + ec.message();
 		}
 
-		converter.SetFullName(wxstr(map.spawnmonsterfile));
-		if (converter.FileExists()) {
-			backup_spawn = map_path + nstr(converter.GetName()) + ".xml~";
-			std::remove(backup_spawn.c_str());
-			std::rename((map_path + map.spawnmonsterfile).c_str(), backup_spawn.c_str());
+		result.error = "Could not save " + file.name + ": " + reason;
+		result.failed.push_back({ file.name, reason });
+		rollBack();
+		if (showdialog) {
+			g_gui.PopupDialog("Error", wxstr(result.error), wxOK);
 		}
-
-		converter.SetFullName(wxstr(map.spawnnpcfile));
-		if (converter.FileExists()) {
-			backup_spawn_npc = map_path + nstr(converter.GetName()) + ".xml~";
-			std::remove(backup_spawn_npc.c_str());
-			std::rename((map_path + map.spawnnpcfile).c_str(), backup_spawn_npc.c_str());
-		}
-
-		converter.SetFullName(wxstr(map.zonefile));
-		if (converter.FileExists()) {
-			backup_zones = map_path + nstr(converter.GetName()) + ".xml~";
-			std::remove(backup_zones.c_str());
-			std::rename((map_path + map.zonefile).c_str(), backup_zones.c_str());
-		}
+		return result;
 	}
 
 	// Save the map
 	{
 		std::string n = nstr(g_gui.GetLocalDataDirectory()) + ".saving.txt";
 		std::ofstream f(n.c_str(), std::ios::trunc | std::ios::out);
-		f << backup_otbm << std::endl
-		  << backup_house << std::endl
-		  << backup_spawn << std::endl
-		  << backup_spawn_npc << std::endl;
+		for (const SaveFile &file : files) {
+			f << (file.movedAside ? file.backup : std::string()) << std::endl;
+		}
 	}
 
 	{
@@ -347,38 +389,19 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 		// Check for errors...
 		if (!success) {
 			result.error = nstr(mapsaver.getError());
-			const std::vector<std::string> &failedSidecars = mapsaver.getLastSidecarSaveReport().failed;
+			const std::vector<IOMapOTBM::SidecarFailure> &failedSidecars = mapsaver.getLastSidecarSaveReport().failed;
 			if (failedSidecars.empty()) {
-				result.failed.push_back({ map.name, result.error });
+				result.failed.push_back({ files.front().name, result.error });
 			}
-			for (const std::string &sidecar : failedSidecars) {
-				result.failed.push_back({ sidecar, "could not write" });
+			for (const IOMapOTBM::SidecarFailure &sidecar : failedSidecars) {
+				result.failed.push_back({ sidecar.file, sidecar.error });
 			}
 
-			// Rename the temporary backup files back to their previous names. A failed
-			// write may have left a partial file, and std::rename cannot replace an
-			// existing file on Windows, so the target is removed first.
-			const auto restoreBackup = [&result](const std::string &backup, const std::string &target, const std::string &name) {
-				if (backup.empty() || !wxFileExists(wxstr(backup))) {
-					return;
-				}
-				std::remove(target.c_str());
-				if (std::rename(backup.c_str(), target.c_str()) == 0) {
-					result.restored.push_back(name);
-				} else {
-					result.failed.push_back({ name, "could not restore it from " + backup });
-				}
-			};
-
-			restoreBackup(backup_otbm, savefile, map.name);
-			restoreBackup(backup_house, map_path + map.housefile, map.housefile);
-			restoreBackup(backup_spawn, map_path + map.spawnmonsterfile, map.spawnmonsterfile);
-			restoreBackup(backup_spawn_npc, map_path + map.spawnnpcfile, map.spawnnpcfile);
-			restoreBackup(backup_zones, map_path + map.zonefile, map.zonefile);
+			rollBack();
 
 			// Display the error
 			if (showdialog) {
-				g_gui.PopupDialog("Error", "Could not save, unable to open target for writing.", wxOK);
+				g_gui.PopupDialog("Error", "Could not save the map: " + wxstr(result.error), wxOK);
 			}
 		} else {
 			result.sidecars = mapsaver.getLastSidecarSaveReport().written;
@@ -399,63 +422,49 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	// Move to permanent backup
 	if (makeBackup && !save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP)) {
 		std::string backup_path = map_path + "backups/";
-		ensureBackupDirectoryExists(backup_path);
-		// Move temporary backups to their proper files
-		time_t t = time(nullptr);
-		tm* current_time = localtime(&t);
-		ASSERT(current_time);
+		if (ensureBackupDirectoryExists(backup_path)) {
+			// Move temporary backups to their proper files
+			time_t t = time(nullptr);
+			tm* current_time = localtime(&t);
+			ASSERT(current_time);
 
-		std::ostringstream date;
-		date << (1900 + current_time->tm_year);
-		if (current_time->tm_mon < 9) {
-			date << "-"
-				 << "0" << current_time->tm_mon + 1;
+			std::ostringstream date;
+			date << (1900 + current_time->tm_year);
+			if (current_time->tm_mon < 9) {
+				date << "-"
+					 << "0" << current_time->tm_mon + 1;
+			} else {
+				date << "-" << current_time->tm_mon + 1;
+			}
+			date << "-" << current_time->tm_mday;
+			date << "-" << current_time->tm_hour;
+			date << "-" << current_time->tm_min;
+			date << "-" << current_time->tm_sec;
+
+			for (const SaveFile &file : files) {
+				std::error_code ec;
+				if (!file.movedAside || !fs::exists(file.backup, ec)) {
+					continue;
+				}
+				const FileName name(wxstr(file.target));
+				const std::string dated = backup_path + nstr(name.GetName()) + "." + date.str() + "." + nstr(name.GetExt());
+				fs::rename(file.backup, dated, ec);
+				if (ec) {
+					spdlog::warn("Could not move {} into {}: {}", file.backup, dated, ec.message());
+				}
+			}
 		} else {
-			date << "-" << current_time->tm_mon + 1;
-		}
-		date << "-" << current_time->tm_mday;
-		date << "-" << current_time->tm_hour;
-		date << "-" << current_time->tm_min;
-		date << "-" << current_time->tm_sec;
-
-		if (!backup_otbm.empty()) {
-			converter.SetFullName(wxstr(savefile));
-			std::string otbm_filename = backup_path + nstr(converter.GetName());
-			std::rename(backup_otbm.c_str(), std::string(otbm_filename + "." + date.str() + (save_otgz ? ".otgz" : ".otbm")).c_str());
-		}
-
-		if (!backup_house.empty()) {
-			converter.SetFullName(wxstr(map.housefile));
-			std::string house_filename = backup_path + nstr(converter.GetName());
-			std::rename(backup_house.c_str(), std::string(house_filename + "." + date.str() + ".xml").c_str());
-		}
-
-		if (!backup_spawn.empty()) {
-			converter.SetFullName(wxstr(map.spawnmonsterfile));
-			std::string spawn_filename = backup_path + nstr(converter.GetName());
-			std::rename(backup_spawn.c_str(), std::string(spawn_filename + "." + date.str() + ".xml").c_str());
-		}
-
-		if (!backup_spawn_npc.empty()) {
-			converter.SetFullName(wxstr(map.spawnnpcfile));
-			std::string spawnnpc_filename = backup_path + nstr(converter.GetName());
-			std::rename(backup_spawn_npc.c_str(), std::string(spawnnpc_filename + "." + date.str() + ".xml").c_str());
-		}
-
-		if (!backup_zones.empty()) {
-			converter.SetFullName(wxstr(map.zonefile));
-			std::string zones_filename = backup_path + nstr(converter.GetName());
-			std::rename(backup_zones.c_str(), std::string(zones_filename + "." + date.str() + ".xml").c_str());
+			spdlog::warn("Could not create {}, so this save keeps no backup", backup_path);
 		}
 	}
 
-	// Delete the temporary files. After a backup move this only catches a rename
-	// that failed, such as a collision in backups/, so no ~ file outlives a save.
-	std::remove(backup_otbm.c_str());
-	std::remove(backup_house.c_str());
-	std::remove(backup_spawn.c_str());
-	std::remove(backup_spawn_npc.c_str());
-	std::remove(backup_zones.c_str());
+	// Delete the temporary files. After a backup move this only catches a move
+	// that failed, so no ~ file outlives a successful save.
+	for (const SaveFile &file : files) {
+		if (file.movedAside && !removeSaveFile(file.backup)) {
+			spdlog::warn("Could not delete {}", file.backup);
+		}
+	}
 
 	if (makeBackup) {
 		deleteOldBackups(map_path + "backups/");

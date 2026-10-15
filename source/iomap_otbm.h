@@ -138,15 +138,25 @@ public:
 		std::string staticMapDataFileName;
 	};
 
-	enum class SidecarWrite {
+	enum class SidecarOutcome {
 		Unchanged,
 		Written,
 		Failed,
 	};
 
+	struct SidecarWrite {
+		SidecarOutcome outcome = SidecarOutcome::Unchanged;
+		std::string error;
+	};
+
+	struct SidecarFailure {
+		std::string file;
+		std::string error;
+	};
+
 	struct SidecarSaveReport {
 		std::vector<std::string> written;
-		std::vector<std::string> failed;
+		std::vector<SidecarFailure> failed;
 	};
 
 	IOMapOTBM(MapVersion ver);

@@ -44,6 +44,7 @@
 #include <array>
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cstring>
 #include <cstdlib>
 #include <ctime>
@@ -4090,19 +4091,24 @@ namespace {
 		return contentMatchesIgnoringLineEndings(existingContent, content);
 	}
 
-	bool writeContentToFile(const wxString &filepath, const std::string &content) {
-		wxFile file(filepath, wxFile::write);
-		if (!file.IsOpened()) {
-			return false;
+	// Returns why the write failed, or an empty string. The CRT calls keep errno for
+	// the reason, where wxFile would only log it.
+	std::string writeContentToFile(const wxString &filepath, const std::string &content) {
+		FILE* file = wxFopen(filepath, "wb");
+		if (!file) {
+			return std::string("could not open it for writing: ") + std::strerror(errno);
 		}
 
-		if (!content.empty()) {
-			const auto bytesWritten = file.Write(content.data(), content.size());
-			if (static_cast<size_t>(bytesWritten) != content.size()) {
-				return false;
-			}
+		const bool written = content.empty() || fwrite(content.data(), 1, content.size(), file) == content.size();
+		const int writeError = errno;
+		const bool closed = fclose(file) == 0;
+		if (!written) {
+			return std::string("could not write it: ") + std::strerror(writeError);
 		}
-		return file.Close();
+		if (!closed) {
+			return std::string("could not finish writing it: ") + std::strerror(errno);
+		}
+		return {};
 	}
 
 	FORCEINLINE bool isWildcardOtbmIdentifier(const uint8_t* data) {
@@ -4137,22 +4143,33 @@ namespace {
 #endif
 
 	IOMapOTBM::SidecarWrite saveXmlFileIfChanged(const pugi::xml_document &doc, const wxString &filepath) {
-		using SidecarWrite = IOMapOTBM::SidecarWrite;
+		using Outcome = IOMapOTBM::SidecarOutcome;
+
+		// wxFile and wxRenameFile report failures through wxLog, whose default target
+		// is a modal box that would hang an unattended save. The caller reports them.
+		wxLogNull noLog;
 
 		std::ostringstream stream;
 		doc.save(stream, "\t", pugi::format_default, pugi::encoding_utf8);
 		const std::string content = stream.str();
 
 		if (fileMatchesXmlContent(filepath, content)) {
-			return SidecarWrite::Unchanged;
+			return { Outcome::Unchanged, {} };
 		}
 
 		const wxString backupPath = filepath + "~";
 		if (!wxFileExists(filepath) && fileMatchesXmlContent(backupPath, content)) {
-			return wxRenameFile(backupPath, filepath, false) ? SidecarWrite::Unchanged : SidecarWrite::Failed;
+			if (wxRenameFile(backupPath, filepath, false)) {
+				return { Outcome::Unchanged, {} };
+			}
+			return { Outcome::Failed, "could not rename its unchanged ~ copy back" };
 		}
 
-		return writeContentToFile(filepath, content) ? SidecarWrite::Written : SidecarWrite::Failed;
+		std::string failure = writeContentToFile(filepath, content);
+		if (failure.empty()) {
+			return { Outcome::Written, {} };
+		}
+		return { Outcome::Failed, std::move(failure) };
 	}
 
 	struct TileAreaSaveState {
@@ -5831,11 +5848,11 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 	}
 
 	sidecarSaveReport_ = {};
-	const auto recordSidecar = [this](const std::string &file, SidecarWrite outcome) {
-		if (outcome == SidecarWrite::Written) {
+	const auto recordSidecar = [this](const std::string &file, const SidecarWrite &write) {
+		if (write.outcome == SidecarOutcome::Written) {
 			sidecarSaveReport_.written.push_back(file);
-		} else if (outcome == SidecarWrite::Failed) {
-			sidecarSaveReport_.failed.push_back(file);
+		} else if (write.outcome == SidecarOutcome::Failed) {
+			sidecarSaveReport_.failed.push_back({ file, write.error });
 		}
 	};
 
@@ -5853,7 +5870,8 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 
 	// The caller rolls every file back, so the .otbm never disagrees with its sidecars.
 	if (!sidecarSaveReport_.failed.empty()) {
-		error("Could not write %s", sidecarSaveReport_.failed.front().c_str());
+		const SidecarFailure &failure = sidecarSaveReport_.failed.front();
+		error("Could not write %s: %s", failure.file.c_str(), failure.error.c_str());
 		return false;
 	}
 	return true;
@@ -5965,7 +5983,7 @@ IOMapOTBM::SidecarWrite IOMapOTBM::saveSpawns(Map &map, const FileName &dir) {
 	if (saveSpawns(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return SidecarWrite::Failed;
+	return { SidecarOutcome::Failed, "could not build its XML" };
 }
 
 bool IOMapOTBM::saveSpawns(Map &map, pugi::xml_document &doc) {
@@ -6042,7 +6060,7 @@ IOMapOTBM::SidecarWrite IOMapOTBM::saveHouses(Map &map, const FileName &dir) {
 	if (saveHouses(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return SidecarWrite::Failed;
+	return { SidecarOutcome::Failed, "could not build its XML" };
 }
 
 bool IOMapOTBM::saveHouses(Map &map, pugi::xml_document &doc) {
@@ -6994,7 +7012,7 @@ IOMapOTBM::SidecarWrite IOMapOTBM::saveZones(Map &map, const FileName &dir) {
 	if (saveZones(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return SidecarWrite::Failed;
+	return { SidecarOutcome::Failed, "could not build its XML" };
 }
 
 bool IOMapOTBM::saveZones(Map &map, pugi::xml_document &doc) {
@@ -7027,7 +7045,7 @@ IOMapOTBM::SidecarWrite IOMapOTBM::saveSpawnsNpc(Map &map, const FileName &dir) 
 	if (saveSpawnsNpc(map, doc)) {
 		return saveXmlFileIfChanged(doc, filepath);
 	}
-	return SidecarWrite::Failed;
+	return { SidecarOutcome::Failed, "could not build its XML" };
 }
 
 bool IOMapOTBM::saveSpawnsNpc(Map &map, pugi::xml_document &doc) {
