@@ -1,0 +1,7 @@
+# Read by the shellcheck hook in .pre-commit-config.yaml, which passes this path.
+shell=bash
+enable=all
+# The optional masked-return checks flag every $(...) in a condition; the scripts run under
+# set -euo pipefail and assert the results that matter.
+disable=SC2310,SC2312
+external-sources=true

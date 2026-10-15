@@ -1,0 +1,4 @@
+# Read by the taplo hooks in .pre-commit-config.yaml, which pass this path.
+[formatting]
+align_comments = false
+array_auto_collapse = false

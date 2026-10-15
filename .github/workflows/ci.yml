@@ -30,6 +30,14 @@ on:
       - ".github/actions/**"
       - ".mise/**"
       - "mise.lock"
+      - ".pre-commit-config.yaml"
+      - ".config/**"
+      - ".editorconfig"
+      - ".renovaterc.json5"
+      - "release-please-config.json"
+      - ".release-please-manifest.json"
+      - "docs/agents/**"
+      - "docs/building/README.md"
 
 permissions:
   contents: read
@@ -87,6 +95,14 @@ jobs:
               - ".github/workflows/autofix-ci.yml"
               - ".github/workflows/update_vcpkg_baseline.yml"
 
+  # The fork's own lint over its tooling files; upstream's checks below cover the C++.
+  lint:
+    name: Lint
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    permissions:
+      contents: read
+    uses: ./.github/workflows/lint.yml
+
   checks:
     name: Fast Checks
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
@@ -143,7 +159,7 @@ jobs:
 
   # The single required check. It passes only when every job above succeeded or was skipped.
   ci:
-    needs: [changes, checks, build-linux, build-macos, build-windows, build-windows-pr]
+    needs: [changes, lint, checks, build-linux, build-macos, build-windows, build-windows-pr]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

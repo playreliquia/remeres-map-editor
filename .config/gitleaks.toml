@@ -1,0 +1,11 @@
+# Read by the gitleaks hook in .pre-commit-config.yaml and `mise run scan`, which pass this path.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "false positives in upstream's history"
+paths = [
+  # libarchive's mtree writer, which upstream once vendored: the generic-api-key rule reads
+  # its `key` keyword table as a secret.
+  '''^dependencies/vs/include/libarchive/archive_write_set_format_mtree\.c$''',
+]

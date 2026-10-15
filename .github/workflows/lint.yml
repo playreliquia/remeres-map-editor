@@ -1,0 +1,57 @@
+name: Reusable Lint
+
+# The fork's lint, called by ci.yml so the `ci` gate needs it: the prek hooks in
+# .pre-commit-config.yaml over the files a change touches, then a secret scan of the full
+# history. Both steps run even when the other fails, so one run reports every failure.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: prek, gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # Full history: gitleaks scans all of it, and the lint range needs the base commit.
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: prek actionlint zizmor shellcheck shfmt taplo gitleaks node markdownlint-cli2 prettier aqua:editorconfig-checker/editorconfig-checker
+
+      # prek installs the Renovate config validator into a node environment on every cold run.
+      - name: Restore the prek hook environments
+        id: prek-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/prek
+          key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', 'mise.lock') }}
+
+      # Only the files this change touches; a dispatch has no range.
+      - name: Run the hooks over the change
+        id: lint
+        if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'merge_group'
+        env:
+          LINT_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+        run: mise run lint
+
+      - name: Scan the history for secrets
+        if: ${{ !cancelled() }}
+        run: mise run scan
+
+      # A merge group's caches sit under its own ref, which no later run can restore.
+      - name: Save the prek hook environments
+        if: ${{ !cancelled() && github.event_name != 'merge_group' && steps.prek-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/prek
+          key: ${{ steps.prek-cache.outputs.cache-primary-key }}

@@ -1,0 +1,4 @@
+# Read by the markdownlint-cli2 hook in .pre-commit-config.yaml, which passes this path.
+default: true
+# Prose lines wrap where they read best, and tables and links run long.
+MD013: false

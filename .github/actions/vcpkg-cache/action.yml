@@ -56,7 +56,7 @@ runs:
         started=$(gh api "repos/${GH_REPO}/actions/runs/${RUN_ID}" --jq .run_started_at)
         jq -r --arg key "${KEY}" --arg started "${started}" \
           'def t: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
-           .[] | select(.key != $key and (.createdAt | t) < ($started | t)) | .key' \
+            .[] | select(.key != $key and (.createdAt | t) < ($started | t)) | .key' \
           <<<"${caches}" | while read -r old; do
           gh cache delete "${old}" --ref "${REF}" || echo "::warning::Could not delete cache ${old}"
         done

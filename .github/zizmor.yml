@@ -1,0 +1,10 @@
+# Read by the zizmor hook in .pre-commit-config.yaml, which passes this path.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin
+  # The `$/` form zizmor asks for in place of `./.github/...` is one the pinned actionlint
+  # rejects. Drop this once actionlint parses it.
+  self-repository:
+    disable: true

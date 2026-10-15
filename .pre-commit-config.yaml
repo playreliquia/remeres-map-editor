@@ -1,0 +1,130 @@
+# The one lint entry point for the fork's own tooling files. prek runs these hooks: a commit,
+# `mise run lint` and ci resolve the same mise-pinned binaries. Shared configs live in .config/
+# and each hook passes its path.
+#
+# `files` lists the paths the fork owns, so no hook reads upstream's C++, data or docs, and a
+# path upstream adds later stays out until it is listed here. A file the fork shares with
+# upstream, such as README.md or .editorconfig, stays out too: reformatting it would turn every
+# upstream merge into conflicts.
+#
+# `exclude` drops the upstream workflows that never run on the fork: autofix-ci.yml and
+# update_vcpkg_baseline.yml are disabled, and no workflow calls reusable-build-docker.yml. Their
+# zizmor and actionlint findings stay unfixed, so they stay byte for byte upstream's. Every
+# workflow the fork runs is linted, upstream's included: an upstream merge that brings an
+# unpinned action into one of them fails lint until the action is pinned.
+files: ^(\.github/|\.vscode/|\.mise/|\.config/|cmake/triplets/[^/]+-release\.cmake$|docs/agents/|docs/building/README\.md$|\.pre-commit-config\.yaml$|\.renovaterc\.json5$|release-please-config\.json$|\.release-please-manifest\.json$|mise\.lock$)
+exclude: ^\.github/workflows/(autofix-ci|update_vcpkg_baseline|reusable-build-docker)\.yml$
+
+# The pre-push stage runs no hook yet; without this every hook would also run over the pushed
+# files.
+default_stages: [pre-commit]
+
+repos:
+  # --- Universal checks ---
+  # prek's own implementations, so no hook needs a Python runtime.
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+
+  # --- Renovate config ---
+  # An invalid config stops Renovate silently; the failure shows only in its workflow log.
+  # A node hook: prek installs Renovate into its own environment under the pinned node.
+  - repo: https://github.com/renovatebot/pre-commit-hooks
+    rev: 44.142.0
+    hooks:
+      - id: renovate-config-validator
+        args: [--strict]
+
+  # --- Secret scanning ---
+  # Staged changes only; `mise run scan` covers the full history in ci.
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks
+        entry: mise exec -- gitleaks git --staged --redact --no-banner --config .config/gitleaks.toml
+        language: system
+        pass_filenames: false
+
+  # --- GitHub Actions linting and security ---
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: actionlint
+        entry: mise exec -- actionlint
+        language: system
+        files: ^\.github/workflows/
+      - id: zizmor
+        name: zizmor
+        entry: mise exec -- zizmor --config .github/zizmor.yml
+        language: system
+        files: ^\.github/(workflows/|actions/.*/action\.ya?ml$)
+
+  # --- Shell ---
+  # The mise file tasks have no extension; prek tags them shell by their shebang. shfmt takes
+  # its indentation from .editorconfig.
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        entry: mise exec -- shellcheck --rcfile .config/shellcheckrc
+        language: system
+        types: [shell]
+      - id: shfmt
+        name: shfmt
+        entry: mise exec -- shfmt --write
+        language: system
+        types: [shell]
+
+  # --- TOML formatting and linting ---
+  # mise.lock is mise's output, so only `mise lock` writes it.
+  - repo: local
+    hooks:
+      - id: taplo-format
+        name: taplo format
+        entry: mise exec -- taplo format --config .config/taplo.toml
+        language: system
+        types: [toml]
+        exclude: ^mise\.lock$
+      - id: taplo-lint
+        name: taplo lint
+        entry: mise exec -- taplo lint --config .config/taplo.toml
+        language: system
+        types: [toml]
+
+  # --- JSON formatting ---
+  # YAML stays out: prettier writes one space before an inline comment, and upstream's yamllint
+  # check in reusable-checks.yml asks for two.
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        entry: mise exec -- prettier --write
+        language: system
+        types_or: [json, json5]
+
+  # --- Markdown linting ---
+  - repo: local
+    hooks:
+      - id: markdownlint-cli2
+        name: markdownlint-cli2
+        entry: mise exec -- markdownlint-cli2 --config .config/markdownlint.yaml
+        language: system
+        types: [markdown]
+
+  # --- EditorConfig compliance ---
+  - repo: local
+    hooks:
+      - id: editorconfig-checker
+        name: editorconfig-checker
+        entry: mise exec -- ec
+        language: system
+        types: [text]
