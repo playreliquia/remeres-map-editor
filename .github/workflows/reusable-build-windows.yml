@@ -27,6 +27,9 @@ jobs:
       VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite;nuget,https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json,${{ inputs.nuget == 'readwrite' && 'readwrite' || 'read' }};nugettimeout,600"
       # GitHub Packages links a package pushed with GITHUB_TOKEN to this repository.
       VCPKG_NUGET_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
+      # Always on, with no input: ci.yml and publish.yml share this job, and one configuration
+      # keeps one vcpkg package set and one compiler-cache profile.
+      RME_BUILD_TESTS: "ON"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
@@ -89,6 +92,10 @@ jobs:
 
       - name: Build
         run: mise run build
+
+      # ctest exits non-zero on a failed test, which fails the job before it packages.
+      - name: Test
+        run: mise run test
 
       - name: Package
         run: mise run package

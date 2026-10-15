@@ -68,6 +68,7 @@ option(OPTIONS_ENABLE_CCACHE "Enable ccache" OFF)
 option(OPTIONS_ENABLE_SCCACHE "Use sccache to speed up compilation process" OFF)
 option(OPTIONS_ENABLE_IPO
        "Check and Enable interprocedural optimization (IPO/LTO)" ON)
+option(RME_BUILD_TESTS "Build the unit tests" OFF)
 
 # *****************************************************************************
 # Set Sanity Check
@@ -169,3 +170,12 @@ endif()
 # *****************************************************************************
 add_subdirectory(source/protobuf)
 add_subdirectory(source)
+
+# *****************************************************************************
+# Unit tests
+# *****************************************************************************
+# Not include(CTest): it defaults on and adds CDash targets the project does not use.
+if(RME_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

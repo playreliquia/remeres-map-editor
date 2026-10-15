@@ -18,6 +18,9 @@ inputs:
 runs:
   using: composite
   steps:
+    # The second restore key falls back to an older manifest's save. Each zip is named by its
+    # ABI, so vcpkg restores the unchanged packages from it and builds only the changed ones,
+    # and the save-time prune below drops the zips this run no longer uses.
     - name: Restore vcpkg packages
       if: inputs.mode == 'restore'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -26,11 +29,12 @@ runs:
         key: vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
           vcpkg-${{ inputs.os }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/*.cmake') }}-
+          vcpkg-${{ inputs.os }}-
 
-    # Each package zip is named by its ABI, so a baseline bump or a triplet edit leaves the old
-    # zips next to the new ones, and every later save would carry them on. The install root's
-    # status database lists the ABI of each package this run restored or built, so every other
-    # zip is dead weight. Without a successful install there is no complete list, and every zip
+    # Each package zip is named by its ABI, so a baseline bump or a triplet edit, restored
+    # through the fallback key, leaves the old zips next to the new ones, and every later save
+    # would carry them on. The install root's status database lists the ABI of each package
+    # this run restored or built, so every other zip is dead weight. Without a successful install there is no complete list, and every zip
     # is kept.
     - name: Prune stale vcpkg package zips
       if: inputs.mode == 'save'
@@ -81,8 +85,8 @@ runs:
     # Windows falls back to the NuGet feed. Without the prune, per-run keys fill the 10 GB limit and evict main's cache.
     # It deletes only keys under this manifest hash that were created before this run attempt
     # started, so it never removes a newer run's save; a changed hash leaves the old keys to
-    # age out. A fork's read-only token cannot delete caches; clean-cache.yaml removes its
-    # PR's caches on close.
+    # age out, and the first run under the new hash restores from the newest of them. A fork's
+    # read-only token cannot delete caches; clean-cache.yaml removes its PR's caches on close.
     - name: Prune older vcpkg packages
       if: inputs.mode == 'save'
       shell: bash

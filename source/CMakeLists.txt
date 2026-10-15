@@ -323,6 +323,7 @@ target_sources(
           replace_items_window.cpp
           result_window.cpp
           rme_net.cpp
+          save_files.cpp
           selection.cpp
           settings.cpp
           sqlite_materials_inspector.cpp

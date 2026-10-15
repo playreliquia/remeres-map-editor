@@ -58,6 +58,7 @@
       "description": "Windows debug build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "RME_BUILD_TESTS": "ON",
         "DEBUG_LOG": "ON",
         "BUILD_STATIC_LIBRARY": "OFF",
         "SPEED_UP_BUILD_UNITY": "OFF",
@@ -89,6 +90,7 @@
       "description": "Linux debug build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "RME_BUILD_TESTS": "ON",
         "DEBUG_LOG": "ON",
         "SPEED_UP_BUILD_UNITY": "OFF",
         "VCPKG_TARGET_TRIPLET": "x64-linux",
@@ -119,6 +121,7 @@
       "description": "macOS debug build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "RME_BUILD_TESTS": "ON",
         "DEBUG_LOG": "ON",
         "SPEED_UP_BUILD_UNITY": "OFF",
         "VCPKG_TARGET_TRIPLET": "arm64-osx",
@@ -150,6 +153,29 @@
     {
       "name": "macos-debug",
       "configurePreset": "macos-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-debug",
+      "configurePreset": "macos-debug",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

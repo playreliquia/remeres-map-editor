@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Run the unit tests of the release build"
+# No depends on build: a plain `mise run build` configures with the tests off, so the build that
+# runs first must set RME_BUILD_TESTS=ON (`RME_BUILD_TESTS=ON mise run build && mise run test`).
+set -euo pipefail
+
+# shellcheck source=.mise/lib/preset.sh
+source .mise/lib/preset.sh
+# ctest exits non-zero on a failed test, and when the build has no tests, so a build configured
+# with the tests off fails here rather than passing with nothing run.
+ctest --test-dir "build/${os}-release" --output-on-failure --no-tests=error
