@@ -39,6 +39,14 @@ mise run test
 
 The Linux, Windows and macOS build jobs configure with `RME_BUILD_TESTS=ON` and run `mise run test` between the build and the package. A failed test fails the job, and no package is uploaded.
 
+## Shell tools
+
+A bash script under `tools/` has its tests under `tests/tools/`, as a bash script that stubs every Windows program on `PATH`. `tests/CMakeLists.txt` registers each one with `add_test` on Linux hosts only, so the Linux job runs it under `mise run test`. Run one directly without a build:
+
+```sh
+bash tests/tools/test_windows_save_checks.sh
+```
+
 ## Adding a test
 
 Every behaviour change adds a test under `tests/`. A change to code that has no seam yet extracts the wx-free part into its own `.cpp` first, as `source/save_files.cpp` does for the file moves in `Editor::saveMap`, tested by `tests/test_save_files.cpp`.

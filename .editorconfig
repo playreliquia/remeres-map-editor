@@ -23,9 +23,9 @@ indent_size = 2
 
 # The fork's tooling files indent with spaces, as YAML must. The editorconfig-checker hook in
 # .pre-commit-config.yaml checks them, and shfmt reads the shell keys.
-[{.github/**,.vscode/**,.mise/**,.config/**,cmake/triplets/**,docs/agents/**,docs/building/README.md,.pre-commit-config.yaml,.renovaterc.json5,release-please-config.json,.release-please-manifest.json,mise.lock}]
+[{.github/**,.vscode/**,.mise/**,.config/**,cmake/triplets/**,docs/agents/**,docs/building/README.md,.pre-commit-config.yaml,.renovaterc.json5,release-please-config.json,.release-please-manifest.json,mise.lock,tools/*.sh,tests/tools/*.sh}]
 indent_style = space
 indent_size = 2
 
-[{.mise/tasks/**,.mise/lib/**}]
+[{.mise/tasks/**,.mise/lib/**,tools/*.sh,tests/tools/*.sh}]
 switch_case_indent = true
