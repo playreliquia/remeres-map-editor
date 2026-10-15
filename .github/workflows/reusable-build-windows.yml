@@ -16,6 +16,10 @@ jobs:
   build:
     name: Compile (windows-release)
     runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     # The mise tasks are bash scripts; Git Bash runs them.
     defaults:
       run:
