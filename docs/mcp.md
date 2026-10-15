@@ -200,7 +200,7 @@ while the panel is in read-only mode.
 | `tile_edit` | Batch tile mutation in a single undo step: ground, add/remove items (with count, action id, unique id, text), clear items, map flags, house id, zones, optional borderize/wallize. Prefer one call with many tiles. |
 | `brush_apply` | Apply a named editor brush over a list of positions. This is how you get correct borders, wall connections and doodad composition instead of placing raw ids. |
 | `brush_list` | The brushes this installation has. |
-| `editor_action` | undo, redo, save, goto, select, deselect, clear_selection. |
+| `editor_action` | undo, redo, save, goto, select, deselect, clear_selection. `save` writes the open map to its own file with no dialog, and refuses a map that has no file yet. It returns `saved`, `filename`, `sidecars` (the sidecar files it wrote) and `hasUnsavedChanges`. If any file fails to write, every file is renamed back from its `~` copy, and the result sets `isError` and adds `error`, `restored` and `failed` (`file` and `error` for each). A successful save leaves no `~` file, and an MCP save never writes to `backups/`. |
 | `house_manage` | create / update / delete / set_exit / assign_tiles / unassign_tiles |
 | `town_manage` | create / update / delete (refuses to orphan houses unless forced) |
 | `waypoint_manage` | create / move / delete |
