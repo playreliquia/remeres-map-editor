@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Configure and build the debug editor into the repository root"
+#MISE hide=true
+set -euo pipefail
+
+# shellcheck source=.mise/lib/preset.sh
+source .mise/lib/preset.sh
+# The editor finds data/, brushes/ and icons/ beside its executable, so the debug build lands in
+# the repository root, where they are.
+cmake --preset "${os}-debug" -DTOGGLE_BIN_FOLDER=OFF
+cmake --build --preset "${os}-debug"

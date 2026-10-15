@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="Install the release preset's vcpkg packages into its build directory"
+#MISE hide=true
+# Its own task, so ci shows the install apart from the compile, and a compile failure cannot hide
+# an install success. The configure in `build` then finds every package installed.
+set -euo pipefail
+
+# shellcheck source=.mise/lib/preset.sh
+source .mise/lib/preset.sh
+# The <os>-release preset's triplets in CMakePresets.json.
+case "${os}" in
+  windows) triplet=x64-windows-static-release host_triplet=x64-windows ;;
+  macos) triplet=arm64-osx-release host_triplet=arm64-osx-release ;;
+  *) triplet=x64-linux-release host_triplet=x64-linux-release ;;
+esac
+"${VCPKG_ROOT}/vcpkg" install \
+  --x-install-root="build/${os}-release/vcpkg_installed" \
+  --overlay-triplets=cmake/triplets \
+  --triplet="${triplet}" \
+  --host-triplet="${host_triplet}" \
+  --clean-after-build

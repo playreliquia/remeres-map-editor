@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Configure and build the release editor"
+#MISE depends=["build:deps"]
+set -euo pipefail
+
+# shellcheck source=.mise/lib/preset.sh
+source .mise/lib/preset.sh
+# The executable lands in build/<preset>/bin rather than the source root, and IPO stays off,
+# as in upstream's ci and Dockerfile. MSVC writes debug info into each object (/Z7) instead of
+# one shared PDB (/Zi): sccache caches no /Zi compile, and parallel /Zi compiles under sccache
+# fail with C1041 on that PDB. CMakeLists.txt's minimum version predates CMP0141, which the
+# format variable needs.
+cmake --preset "${os}-release" -DTOGGLE_BIN_FOLDER=ON -DOPTIONS_ENABLE_IPO=OFF \
+  -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+cmake --build --preset "${os}-release"

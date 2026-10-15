@@ -1,0 +1,29 @@
+name: Set up mise
+description: Install the pinned mise, trust this repository's config and install tools under MISE_ENV=ci.
+
+inputs:
+  install_args:
+    description: The tools to install. Empty installs every tool in .mise/config.toml.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # Every later step in the job runs its mise tasks under the ci env (.mise/config.ci.toml), so
+    # `MISE_ENV=ci mise run <task>` reproduces it locally.
+    - name: Select the ci env and trust the config
+      shell: bash
+      run: |
+        {
+          echo "MISE_ENV=ci"
+          echo "MISE_TRUSTED_CONFIG_PATHS=${GITHUB_WORKSPACE}"
+        } >>"${GITHUB_ENV}"
+
+    # With mise.lock in the workspace, mise-action installs with --locked.
+    - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c  # v4.3.0
+      with:
+        # renovate: datasource=github-releases depName=jdx/mise
+        version: "2026.10.5"
+        install_args: ${{ inputs.install_args }}
+        # A merge group's caches sit under its own ref, which no later run can restore.
+        cache_save: ${{ github.event_name != 'merge_group' }}

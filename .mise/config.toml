@@ -1,0 +1,82 @@
+# The editor's tools, env and tasks. File tasks live under .mise/tasks/ and are bash scripts that
+# mise starts through their shebang. On Windows, run mise from Git Bash, so `bash` on PATH is
+# Git's and not WSL's.
+
+# An older mise writes mise.lock entries that a newer `mise install --locked` rejects.
+min_version = "2026.9.12"
+# A config under .mise/ would get its lockfile at .mise/mise.lock. Declaring the repository a
+# monorepo whose only config root is itself keeps the lockfile at <root>/mise.lock, as in
+# reliquia. `mise tasks` lists the tasks as //:<name>; `mise run <name>` still works.
+monorepo_root = true
+
+[monorepo]
+config_roots = ["."]
+lockfile = true
+
+# Every version is exact so a local shell, the git hooks and ci resolve the same binaries
+# (mise.lock carries the checksums).
+[tools]
+# vcpkg's pinned ports predate CMake 4, which dropped compatibility with cmake_minimum_required < 3.5.
+cmake = "3.31.12"
+ninja = "1.13.2"
+# Compiler caches: ccache for gcc and clang, sccache for MSVC (CMakePresets.json picks one per OS).
+ccache = { version = "4.14.1", os = ["linux", "macos"] }
+sccache = { version = "0.18.0", os = ["windows"] }
+# Runs the hooks in .pre-commit-config.yaml; a single binary, so the toolset needs no Python.
+prek = "0.5.5"
+# Linters the hooks run over the fork's own tooling files, never upstream C++.
+actionlint = "1.7.12"
+zizmor = "1.30.1"
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+taplo = "0.10.0"
+gitleaks = "8.30.1"
+# markdownlint-cli2 installs through npm, so it needs node.
+node = "24.21.0"
+markdownlint-cli2 = "0.23.3"
+
+[settings]
+# The platforms the editor builds on; mise.lock covers each of them.
+lockfile_platforms = ["linux-x64", "macos-arm64", "windows-x64"]
+# Install npm tools with the npm CLI. mise's built-in installer also records each npm tool's
+# dependency tree in a sidecar under .mise/locks/ that mise.lock points to; with this setting
+# mise.lock alone pins the tools, as in reliquia.
+npm.shell_out = true
+
+[env]
+VCPKG_ROOT = "{{config_root}}/.vcpkg"
+# Without these, ccache misses on every translation unit that uses a precompiled header.
+CCACHE_SLOPPINESS = "pch_defines,time_macros,include_file_mtime,include_file_ctime"
+
+[tasks.setup]
+description = "Install vcpkg at the pinned baseline, the git hooks and the upstream remote"
+depends = ["setup:vcpkg", "setup:hooks", "setup:upstream"]
+
+# Without .pre-commit-config.yaml the installed hook would fail every commit.
+[tasks."setup:hooks"]
+description = "Install the pre-commit and pre-push git hooks"
+shell = "bash -c"
+run = """
+if [[ -f .pre-commit-config.yaml ]]; then
+  prek install --hook-type pre-commit --hook-type pre-push
+else
+  echo "no .pre-commit-config.yaml yet; skipping the git hooks"
+fi
+"""
+hide = true
+
+# The fork versions itself apart from upstream, so upstream's tags stay out of this clone.
+[tasks."setup:upstream"]
+description = "Add the upstream remote without its tags"
+shell = "bash -c"
+run = """
+git remote get-url upstream >/dev/null 2>&1 \
+  || git remote add upstream https://github.com/opentibiabr/remeres-map-editor.git
+git config remote.upstream.tagOpt --no-tags
+"""
+hide = true
+
+[tasks.clean]
+description = "Remove build output and packages"
+shell = "bash -c"
+run = "rm -rf build dist canary-map-editor-debug canary-map-editor-debug-x64.exe"

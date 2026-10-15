@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Build the debug editor incrementally and start it"
+#MISE depends=["build:dev"]
+set -euo pipefail
+
+# build:dev writes the executable to the repository root, beside data/, brushes/ and icons/.
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) binary=canary-map-editor-debug-x64.exe ;;
+  *) binary=canary-map-editor-debug ;;
+esac
+exec "./${binary}" "$@"

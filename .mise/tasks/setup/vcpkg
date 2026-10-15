@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#MISE description="Clone vcpkg at the builtin-baseline pinned in vcpkg.json"
+#MISE hide=true
+set -euo pipefail
+
+: "${VCPKG_ROOT:?set in .mise/config.toml}"
+baseline=$(grep -o '"builtin-baseline": *"[0-9a-f]*"' vcpkg.json | grep -o '[0-9a-f]\{40\}')
+if [[ ! -d "${VCPKG_ROOT}/.git" ]]; then
+  git clone https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+fi
+git -C "${VCPKG_ROOT}" fetch --quiet origin "${baseline}"
+git -C "${VCPKG_ROOT}" checkout --quiet "${baseline}"
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) tool="${VCPKG_ROOT}/vcpkg.exe" ;;
+  *) tool="${VCPKG_ROOT}/vcpkg" ;;
+esac
+stamp="${VCPKG_ROOT}/.bootstrapped-baseline"
+# A tool bootstrapped for another baseline cannot read this baseline's scripts.
+if [[ ! -x "${tool}" || ! -f "${stamp}" || "$(<"${stamp}")" != "${baseline}" ]]; then
+  case "$(uname)" in
+    MINGW* | MSYS* | CYGWIN*) cmd.exe //c "$(cygpath -w "${VCPKG_ROOT}")\\bootstrap-vcpkg.bat" -disableMetrics ;;
+    *) "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics ;;
+  esac
+  echo "${baseline}" >"${stamp}"
+fi

@@ -14,15 +14,12 @@ on:
 
 jobs:
   build:
-    name: Compile (${{ matrix.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: CMake Release
-            type: CMake
-            artifact: windows-cmake-release
+    name: Compile (windows-release)
     runs-on: windows-2025
+    # The mise tasks are bash scripts; Git Bash runs them.
+    defaults:
+      run:
+        shell: bash
     env:
       # The Actions cache below holds the files source, which every run writes under its own
       # ref. The org's NuGet feed is shared by every ref and outside the 10 GB cache limit, so
@@ -31,94 +28,31 @@ jobs:
       # GitHub Packages links a package pushed with GITHUB_TOKEN to this repository.
       VCPKG_NUGET_REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      SCCACHE_DIR: ${{ github.workspace }}\.sccache
     steps:
-      - name: Install VS 2026 Build Tools (v145 toolset)
-        if: matrix.type == 'Solution'
-        shell: pwsh
-        run: |
-          $acceptedExitCodes = @(0, 3010)
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
-            choco install visualstudio2026-workload-vctools --yes --ignore-package-exit-codes=3010 --no-progress
-            if ($acceptedExitCodes -contains $LASTEXITCODE) {
-              exit 0
-            }
-
-            Write-Warning "Chocolatey install failed with exit code $LASTEXITCODE on attempt $attempt."
-            if ($attempt -lt 3) {
-              Start-Sleep -Seconds (30 * $attempt)
-            }
-          }
-
-          Write-Warning "Chocolatey could not install the VS 2026 v145 workload. Continuing so the next step can use any runner-provided toolset."
-
-      - name: Setup MSBuild.exe
-        if: matrix.type == 'Solution'
-        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57  # v3.0.0
-        with:
-          vs-prerelease: true
-          vs-version: "latest"
-
-      - name: Verify v145 platform toolset
-        if: matrix.type == 'Solution'
-        shell: pwsh
-        run: |
-          $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
-          $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) {
-            throw "vswhere.exe not found"
-          }
-
-          $installPath = & $vswhere -latest -prerelease -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $installPath) {
-            throw "Visual Studio with VC tools was not found"
-          }
-
-          $vcMsbuildRoot = Join-Path $installPath "MSBuild\Microsoft\VC"
-          $toolset = Get-ChildItem -Path $vcMsbuildRoot -Directory -Recurse -Filter v145 -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match "\\PlatformToolsets\\v145$" } |
-            Select-Object -First 1
-          if (-not $toolset) {
-            Get-ChildItem -Path $vcMsbuildRoot -Directory -Recurse -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -match "\\PlatformToolsets\\v\d+$" } |
-              Sort-Object FullName |
-              ForEach-Object { Write-Host "Found platform toolset: $($_.FullName)" }
-            throw "v145 platform toolset was not found under $vcMsbuildRoot"
-          }
-
-          Write-Host "Using v145 platform toolset at $($toolset.FullName)"
-
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6.1.0
         with:
           persist-credentials: false
+
+      # The build needs only these; the lint tools stay out of the build jobs. preset.sh loads
+      # the runner's Visual Studio environment.
+      - uses: ./.github/actions/setup-mise
+        with:
+          install_args: cmake ninja sccache
 
       - uses: ./.github/actions/vcpkg-cache
         with:
           mode: restore
           os: windows
 
-      - name: Get vcpkg baseline
-        shell: pwsh
-        run: |
-          $json = Get-Content vcpkg.json -Raw | ConvertFrom-Json
-          $vcpkgCommitId = $json.'builtin-baseline'
-          "VCPKG_GIT_COMMIT_ID=$vcpkgCommitId" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Prepare sccache directory
-        if: matrix.type == 'CMake'
-        shell: pwsh
-        run: New-Item -ItemType Directory -Force -Path $env:SCCACHE_DIR | Out-Null
-
-      - name: CCache
-        if: matrix.type == 'CMake'
-        uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03  # v1.2.23
+      - name: Restore sccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          max-size: "1G"
-          variant: "sccache"
-          key: ccache-windows-release
+          path: .cache/sccache
+          key: sccache-windows-release-${{ github.ref_name }}-${{ github.sha }}
           restore-keys: |
-            ccache-windows
+            sccache-windows-release-${{ github.ref_name }}-
+            sccache-windows-release-main-
 
       - name: Setup NuGet source for GitHub Packages
         shell: pwsh
@@ -142,58 +76,31 @@ jobs:
           & $nuget setapikey "$env:NUGET_AUTH_TOKEN" -Source $feed
           & $nuget sources list
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2  # v11.6
-        with:
-          vcpkgDirectory: ${{ matrix.type == 'Solution' && format('{0}/vcpkg', github.workspace) || '' }}
-          vcpkgGitURL: "https://github.com/microsoft/vcpkg.git"
-          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT_ID }}
+      - name: Set up vcpkg
+        run: mise run setup:vcpkg
 
-      # Its own step, so install time shows apart from the compile, and a compile failure
-      # cannot hide an install success. CMake's configure then finds every package installed.
+      # The log feeds the push check below.
       - name: Install vcpkg packages
-        if: matrix.type == 'CMake'
-        shell: pwsh
-        # The windows-release preset's triplets.
-        env:
-          TRIPLET: x64-windows-static-release
-          HOST_TRIPLET: x64-windows
         run: |
-          New-Item -ItemType Directory -Force -Path .cache/vcpkg | Out-Null
-          & "$env:VCPKG_ROOT/vcpkg.exe" install `
-            --x-install-root=build/windows-release/vcpkg_installed `
-            --overlay-triplets=cmake/triplets `
-            --triplet=$env:TRIPLET `
-            --host-triplet=$env:HOST_TRIPLET `
-            --clean-after-build 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP/vcpkg-install.log"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          set -euo pipefail
+          mkdir -p .cache/vcpkg
+          mise run build:deps 2>&1 | tee "${RUNNER_TEMP}/vcpkg-install.log"
 
-      - name: Run CMake
-        if: matrix.type == 'CMake'
-        uses: lukka/run-cmake@5d55ea7949e25f69f0ecb516d8d572297e03a956  # v10.9
-        with:
-          configurePreset: windows-release
-          buildPreset: windows-release
-          configurePresetAdditionalArgs: "['-DTOGGLE_BIN_FOLDER=ON', '-DOPTIONS_ENABLE_IPO=OFF']"
+      - name: Build
+        run: mise run build
 
-      - name: Build project (MSBuild solution)
-        if: matrix.type == 'Solution'
-        shell: pwsh
-        run: |
-          $vcpkgRoot = Join-Path (Get-Location) "vcpkg"
-          msbuild.exe vcproj/RME.sln `
-            /m `
-            /p:Configuration=${{ matrix.configuration }} `
-            /p:Platform=x64 `
-            /p:VcpkgEnableManifest=true `
-            /p:VcpkgRoot="$vcpkgRoot" `
-            /p:GITHUB_WORKSPACE="${{ github.workspace }}"
+      - name: Package
+        run: mise run package
+
+      - name: sccache statistics
+        if: always()
+        run: mise exec -- sccache --show-stats
 
       # vcpkg reports a failed push as a warning and carries on, so a feed the token cannot
       # write would go unnoticed. Packages linked to another repository answer 403 until the
       # maintainer grants this repository write access to them.
       - name: Verify vcpkg binary cache push
-        if: matrix.type == 'CMake' && success() && inputs.nuget == 'readwrite'
+        if: success() && inputs.nuget == 'readwrite'
         shell: pwsh
         run: |
           $log = "$env:RUNNER_TEMP/vcpkg-install.log"
@@ -211,29 +118,25 @@ jobs:
             Write-Output "Every package came from a binary cache; nothing to push."
           }
 
-      - name: Upload artifacts (CMake)
-        if: matrix.type == 'CMake'
+      - name: Upload the package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
-          name: ${{ matrix.artifact }}
-          path: build/windows-release/bin/
+          name: windows
+          path: dist/remeres-map-editor-*.zip
           if-no-files-found: error
 
-      - name: Upload artifacts (Solution)
-        if: matrix.type == 'Solution'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+      # A merge group's caches sit under its own ref, which no later run can restore.
+      - name: Save sccache
+        if: always() && github.event_name != 'merge_group'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          name: ${{ matrix.artifact }}
-          path: |
-            *.exe
-            *.dll
-            *.pdb
-          if-no-files-found: error
+          path: .cache/sccache
+          key: sccache-windows-release-${{ github.ref_name }}-${{ github.sha }}
 
       # Saved even when the job fails, so the next attempt keeps what this one built. A merge
       # group's caches sit under its own ref, which no later run can restore.
       - uses: ./.github/actions/vcpkg-cache
-        if: always() && matrix.type == 'CMake' && github.event_name != 'merge_group'
+        if: always() && github.event_name != 'merge_group'
         with:
           mode: save
           os: windows

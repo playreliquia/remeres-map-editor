@@ -1,0 +1,16 @@
+# Loaded on top of .mise/config.toml when MISE_ENV=ci. Run `MISE_ENV=ci mise run <task>` to
+# reproduce a ci job's environment locally.
+
+[settings]
+# The workflow installs the tools a job needs; a task must use those and never install more.
+task.run_auto_install = false
+
+# VCPKG_BINARY_SOURCES is the workflow's: it names the .cache/vcpkg directory the vcpkg-cache
+# action restores and, on Windows, the NuGet feed.
+[env]
+# The build workflows persist these directories with actions/cache, keyed per OS.
+CCACHE_DIR = "{{config_root}}/.cache/ccache"
+CCACHE_BASEDIR = "{{config_root}}"
+CCACHE_MAXSIZE = "1G"
+SCCACHE_DIR = "{{config_root}}/.cache/sccache"
+SCCACHE_CACHE_SIZE = "1G"
