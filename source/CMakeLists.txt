@@ -190,6 +190,9 @@ else()
   target_precompile_headers(${PROJECT_NAME} PRIVATE main.h)
   set_source_files_properties(gl_renderer.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS
                                                          ON)
+  # Also compiled into the tests, which have no wx; main.h would hide a wx use.
+  set_source_files_properties(save_files.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS
+                                                        ON)
 endif()
 
 target_sources(
@@ -323,6 +326,7 @@ target_sources(
           replace_items_window.cpp
           result_window.cpp
           rme_net.cpp
+          save_files.cpp
           selection.cpp
           settings.cpp
           sqlite_materials_inspector.cpp

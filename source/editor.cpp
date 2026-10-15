@@ -234,27 +234,6 @@ void Editor::clearChanges() {
 }
 
 namespace {
-	// One file a save replaces, the map or a sidecar, and its ~ copy.
-	struct SaveFile {
-		std::string target;
-		std::string backup;
-		std::string name;
-		bool existed = false;
-		bool movedAside = false;
-	};
-
-	// Windows refuses to delete a read-only file, and renaming a read-only original
-	// leaves a read-only ~ copy, so the attribute is cleared first.
-	bool removeSaveFile(const std::string &path) {
-		const fs::path file = utf8Path(path);
-		std::error_code ec;
-		if (!fs::exists(file, ec)) {
-			return !ec;
-		}
-		fs::permissions(file, fs::perms::owner_write, fs::perm_options::add, ec);
-		return fs::remove(file, ec);
-	}
-
 	// The save time in a backup's name, for example 2026-10-15-9-5-7.
 	std::string backupTimestamp() {
 		time_t t = time(nullptr);
@@ -274,31 +253,6 @@ namespace {
 		date << "-" << current_time->tm_min;
 		date << "-" << current_time->tm_sec;
 		return date.str();
-	}
-
-	// Moves a ~ copy into backups/ under a dated name and returns why it could not.
-	// fs::rename replaces an existing file, so when a save in the same second took
-	// the name, -1, -2, ... is appended instead.
-	std::string moveIntoBackups(const SaveFile &file, const std::string &backup_path, const std::string &timestamp) {
-		const FileName name(wxstr(file.target));
-		const std::string stem = backup_path + nstr(name.GetName()) + "." + timestamp;
-		const std::string extension = "." + nstr(name.GetExt());
-		for (int attempt = 0; attempt < 1000; ++attempt) {
-			const std::string dated = stem + (attempt == 0 ? std::string() : "-" + std::to_string(attempt)) + extension;
-			std::error_code ec;
-			if (fs::exists(utf8Path(dated), ec)) {
-				continue;
-			}
-			if (ec) {
-				return "could not check " + dated + ": " + ec.message();
-			}
-			fs::rename(utf8Path(file.backup), utf8Path(dated), ec);
-			if (ec) {
-				return "could not move " + file.backup + " to " + dated + ": " + ec.message();
-			}
-			return {};
-		}
-		return "could not find a free backup name for " + stem + extension;
 	}
 
 	std::string saveRunFilePath() {
@@ -391,18 +345,9 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	converter.Assign(wxstr(savefile));
 	std::string map_path = nstr(converter.GetPath(wxPATH_GET_SEPARATOR | wxPATH_GET_VOLUME));
 
-	const bool keepBackups = makeBackup && !save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP);
 	const std::string backup_path = map_path + "backups/";
-	const std::string timestamp = backupTimestamp();
+	const SaveBackups backups { makeBackup && !save_as && g_settings.getInteger(Config::ALWAYS_MAKE_BACKUP), backup_path, backupTimestamp() };
 	const std::vector<std::string> earlierUnrestored = readSaveRunFile();
-
-	// Moves a ~ copy into backups/ under a dated name and returns why it could not.
-	const auto moveToBackups = [this, &backup_path, &timestamp](const SaveFile &file) -> std::string {
-		if (!ensureBackupDirectoryExists(backup_path)) {
-			return "could not create " + backup_path;
-		}
-		return moveIntoBackups(file, backup_path, timestamp);
-	};
 
 	// The files this save replaces, in the order .saving.txt lists them.
 	std::vector<SaveFile> files;
@@ -414,71 +359,15 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 		}
 	}
 
-	// Puts every file back as it was before the save: each ~ copy this save made is
-	// renamed back over whatever the write left, and a file the save created is removed.
-	const auto rollBack = [&result, &files]() {
-		for (const SaveFile &file : files) {
-			std::error_code ec;
-			if (file.movedAside) {
-				// An unchanged sidecar's ~ copy was already renamed back by the writer.
-				if (!fs::exists(utf8Path(file.backup), ec)) {
-					continue;
-				}
-				fs::rename(utf8Path(file.backup), utf8Path(file.target), ec);
-				if (ec) {
-					result.failed.push_back({ file.name, "could not restore it from " + file.backup + ": " + ec.message() });
-				} else {
-					result.restored.push_back(file.name);
-				}
-			} else if (!file.existed && fs::is_regular_file(utf8Path(file.target), ec)) {
-				if (removeSaveFile(file.target)) {
-					result.removed.push_back(file.name);
-				} else {
-					result.failed.push_back({ file.name, "could not remove the file this save created" });
-				}
-			}
-		}
-	};
-
-	// Make temporary backups. Nothing is written unless every existing file was
-	// moved aside, so a rollback only ever renames back a ~ copy this save made, and
-	// the sidecar writer only ever finds a ~ copy this save made.
-	for (SaveFile &file : files) {
-		std::error_code ec;
-		file.existed = fs::exists(utf8Path(file.target), ec);
+	// Nothing is written unless every existing file was moved aside, so a rollback
+	// only ever renames back a ~ copy this save made, and the sidecar writer only
+	// ever finds a ~ copy this save made.
+	std::vector<std::string> warnings;
+	const bool movedAside = moveFilesAside(files, backups, result, warnings);
+	for (const std::string &warning : warnings) {
+		spdlog::warn("{}", warning);
 	}
-	for (SaveFile &file : files) {
-		std::error_code ec;
-		std::string reason;
-		// A ~ left by an earlier save, such as one a menu save could not move into
-		// backups/. A save that keeps backups moves it there; any other deletes it.
-		if (fs::exists(utf8Path(file.backup), ec)) {
-			if (!keepBackups) {
-				if (removeSaveFile(file.backup)) {
-					spdlog::warn("Deleted {}, left by an earlier save", file.backup);
-				} else {
-					reason = "could not delete the old " + file.backup;
-				}
-			} else {
-				reason = moveToBackups(file);
-			}
-		}
-
-		if (reason.empty() && file.existed && fs::is_regular_file(utf8Path(file.target), ec)) {
-			fs::rename(utf8Path(file.target), utf8Path(file.backup), ec);
-			if (ec) {
-				reason = "could not rename it to " + file.backup + ": " + ec.message();
-			} else {
-				file.movedAside = true;
-			}
-		}
-		if (reason.empty()) {
-			continue;
-		}
-
-		result.error = file.name + ": " + reason;
-		result.failed.push_back({ file.name, reason });
-		rollBack();
+	if (!movedAside) {
 		writeSaveRunFile(files, earlierUnrestored, true);
 		if (showdialog) {
 			g_gui.PopupDialog("Error", wxstr(result.error), wxOK);
@@ -505,7 +394,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	try {
 		success = mapsaver.saveMap(map, fn);
 	} catch (...) {
-		rollBack();
+		rollBackSave(files, result);
 		for (const MapSaveResult::FailedFile &failure : result.failed) {
 			spdlog::error("Could not roll back {}: {}", failure.file, failure.error);
 		}
@@ -531,7 +420,7 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 			result.failed.push_back({ sidecar.file, sidecar.error });
 		}
 
-		rollBack();
+		rollBackSave(files, result);
 		writeSaveRunFile(files, earlierUnrestored, true);
 
 		if (showdialog) {
@@ -544,26 +433,10 @@ MapSaveResult Editor::saveMap(FileName filename, bool showdialog, bool makeBacku
 	// Drop this save's lines from the temporary save runfile
 	writeSaveRunFile(files, earlierUnrestored, false);
 
-	if (keepBackups) {
-		// Move temporary backups to their proper files. A ~ that cannot be moved
-		// stays, and the next save that keeps backups moves it.
-		for (const SaveFile &file : files) {
-			std::error_code ec;
-			if (!file.movedAside || !fs::exists(utf8Path(file.backup), ec)) {
-				continue;
-			}
-			const std::string failure = moveToBackups(file);
-			if (!failure.empty()) {
-				spdlog::warn("Keeping {} until the next save: {}", file.backup, failure);
-			}
-		}
-	} else {
-		// Delete the temporary files, so no ~ file outlives a save that keeps no backup.
-		for (const SaveFile &file : files) {
-			if (file.movedAside && !removeSaveFile(file.backup)) {
-				spdlog::warn("Could not delete {}", file.backup);
-			}
-		}
+	warnings.clear();
+	retireSaveBackups(files, backups, warnings);
+	for (const std::string &warning : warnings) {
+		spdlog::warn("{}", warning);
 	}
 
 	if (makeBackup) {
@@ -2155,17 +2028,6 @@ void Editor::SendNodeRequests() {
 	if (live_client) {
 		live_client->sendNodeRequests();
 	}
-}
-
-// Reports failure instead of throwing: Editor::saveMap calls it while ~ copies are
-// on disk, and a throw would skip the rollback and the ~ bookkeeping.
-bool Editor::ensureBackupDirectoryExists(const std::string &backup_path) {
-	const fs::path directory = utf8Path(backup_path);
-	std::error_code ec;
-	if (fs::is_directory(directory, ec)) {
-		return true;
-	}
-	return fs::create_directory(directory, ec);
 }
 
 void Editor::deleteOldBackups(const std::string &backup_path) {

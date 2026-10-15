@@ -9,7 +9,9 @@ source .mise/lib/preset.sh
 # as in upstream's ci and Dockerfile. MSVC writes debug info into each object (/Z7) instead of
 # one shared PDB (/Zi): sccache caches no /Zi compile, and parallel /Zi compiles under sccache
 # fail with C1041 on that PDB. CMakeLists.txt's minimum version predates CMP0141, which the
-# format variable needs.
+# format variable needs. RME_BUILD_TESTS=ON adds the unit tests for `mise run test`; the CI
+# build jobs set it, and a local build leaves it off like the release preset.
 cmake --preset "${os}-release" -DTOGGLE_BIN_FOLDER=ON -DOPTIONS_ENABLE_IPO=OFF \
-  -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+  -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \
+  -DRME_BUILD_TESTS="${RME_BUILD_TESTS:-OFF}"
 cmake --build --preset "${os}-release"

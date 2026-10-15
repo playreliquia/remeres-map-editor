@@ -27,6 +27,12 @@
 - Do not compile, build, or run compile-triggering validation commands unless the user explicitly asks.
 - Prefer non-build checks such as `git diff --check`, focused file inspection, and static reasoning when the user did not ask for a build.
 
+## Testing
+
+- Every behaviour change adds a test under `tests/`.
+- [`docs/testing.md`](docs/testing.md) covers the layout, the test names, the wx-free seams and how to run the tests.
+- The Build Policy still holds: CI builds and runs the tests on every build, so do not run them locally unless the user asks.
+
 ## Precompiled Header Policy
 
 - This project uses `source/main.h` as the precompiled header through `source/CMakeLists.txt`.

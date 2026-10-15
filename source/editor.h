@@ -25,29 +25,13 @@
 
 #include "action.h"
 #include "selection.h"
+#include "save_files.h"
 
 class BaseMap;
 class CopyBuffer;
 class LiveClient;
 class LiveServer;
 class LiveSocket;
-
-struct MapSaveResult {
-	struct FailedFile {
-		std::string file;
-		std::string error;
-	};
-
-	bool saved = false;
-	std::string error;
-	// File names beside the map, never paths: the sidecars a successful save wrote,
-	// and on failure the files renamed back from their ~ copies and the files this
-	// save created and then deleted.
-	std::vector<std::string> sidecars;
-	std::vector<std::string> restored;
-	std::vector<std::string> removed;
-	std::vector<FailedFile> failed;
-};
 
 class Editor {
 public:
@@ -171,7 +155,6 @@ public: // Functions
 	void undraw(const PositionVector &posvec, bool alt);
 	void undraw(const PositionVector &todraw, PositionVector &toborder, bool alt);
 
-	bool ensureBackupDirectoryExists(const std::string &backup_path);
 	void deleteOldBackups(const std::string &backup_path);
 
 protected:

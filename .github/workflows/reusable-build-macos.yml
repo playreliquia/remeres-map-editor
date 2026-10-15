@@ -18,6 +18,9 @@ jobs:
       # The Actions cache below holds the files source. Unlike Windows this skips the NuGet
       # feed: nuget.exe needs mono here, which costs minutes to install.
       VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.cache/vcpkg,readwrite"
+      # Always on, with no input: ci.yml and publish.yml share this job, and one configuration
+      # keeps one vcpkg package set and one compiler-cache profile.
+      RME_BUILD_TESTS: "ON"
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout repository
@@ -57,6 +60,10 @@ jobs:
 
       - name: Build
         run: mise run build
+
+      # ctest exits non-zero on a failed test, which fails the job before it packages.
+      - name: Test
+        run: mise run test
 
       - name: Package
         run: mise run package
