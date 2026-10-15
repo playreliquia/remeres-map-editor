@@ -1,0 +1,166 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // reliquia's shape: stock presets, a `# renovate:` regex manager, labels by update type,
+  // and package rules that say which updates a green `ci` may merge. Renovate runs daily
+  // (renovate.yml) and merges what it may once `ci` passes on its PR. Each rule carries the
+  // reason it is where it is.
+  extends: [
+    "config:recommended",
+    // Every `uses:` on a commit SHA with a `# vX.Y.Z` comment; zizmor requires it.
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":dependencyDashboard",
+  ],
+  dependencyDashboardTitle: "Renovate Dashboard 🤖",
+  suppressNotifications: ["prEditedNotification", "prIgnoreNotification"],
+  labels: ["dependencies"],
+  ignorePaths: [
+    "**/node_modules/**",
+    "**/vcpkg_installed/**",
+    "**/.vcpkg/**",
+    "**/build/**",
+    // The upstream workflows that never run on the fork, which .pre-commit-config.yaml
+    // excludes too: autofix-ci.yml and update_vcpkg_baseline.yml are disabled, and no
+    // workflow calls reusable-build-docker.yml. They stay upstream's.
+    ".github/workflows/autofix-ci.yml",
+    ".github/workflows/update_vcpkg_baseline.yml",
+    ".github/workflows/reusable-build-docker.yml",
+    // Upstream's Dockerfile: no fork workflow builds it, so no check would gate a bump.
+    "Dockerfile",
+  ],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+  // GitHub's auto-merge, so an automerged PR merges once the required `ci` check passes.
+  platformAutomerge: true,
+  "pre-commit": {
+    enabled: true,
+  },
+  customManagers: [
+    {
+      // A `# renovate: datasource=<ds> depName=<name>` comment on the line above a
+      // `KEY: value` or `KEY=value` line: the mise version in .github/actions/setup-mise.
+      customType: "regex",
+      managerFilePatterns: [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^\\.github/actions/.+\\.ya?ml$/",
+        "/(^|/)\\.mise/.+$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\n[^\\n]*?(?::\\s|=)\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?[ \\t]*(?:#[^\\n]*)?\\n",
+      ],
+    },
+    {
+      // vcpkg.json's builtin-baseline, which `mise run setup` checks vcpkg out at. JSON takes
+      // no comments, so the manager names it. Renovate owns it: upstream's
+      // update_vcpkg_baseline.yml stays disabled.
+      customType: "regex",
+      managerFilePatterns: ["/^vcpkg\\.json$/"],
+      matchStrings: ['"builtin-baseline":\\s*"(?<currentDigest>[0-9a-f]{40})"'],
+      datasourceTemplate: "git-refs",
+      depNameTemplate: "https://github.com/microsoft/vcpkg",
+      currentValueTemplate: "master",
+    },
+  ],
+  packageRules: [
+    // --- labels -------------------------------------------------------------------
+    { matchUpdateTypes: ["digest"], addLabels: ["type/digest"] },
+    { matchUpdateTypes: ["patch"], addLabels: ["type/patch"] },
+    { matchUpdateTypes: ["minor"], addLabels: ["type/minor"] },
+    { matchUpdateTypes: ["major"], addLabels: ["type/major"] },
+
+    // --- automerge on green ci -----------------------------------------------------
+    {
+      // One PR across every workflow and composite action: ci.yml's builds run the same
+      // actions publish.yml uses, and renovate.yml's dry-run job runs the Renovate action on
+      // its PR.
+      description: "GitHub Actions, every workflow in one PR",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["digest", "patch", "minor"],
+      groupName: "github actions",
+      automerge: true,
+    },
+    {
+      // A hook change makes `mise run lint` run that hook over the changed config, so a hook
+      // that moved fails ci here.
+      description: "pre-commit hook repositories",
+      matchManagers: ["pre-commit"],
+      groupName: "pre-commit hooks",
+      automerge: true,
+    },
+    {
+      // ci installs every tool from the rewritten mise.lock, the builds theirs and the lint
+      // job the linters, so a bad pin or checksum fails there.
+      description: "mise tools",
+      matchManagers: ["mise"],
+      matchUpdateTypes: ["patch", "minor"],
+      groupName: "mise tools",
+      automerge: true,
+    },
+    {
+      description: "The mise binary the workflows install",
+      matchDepNames: ["jdx/mise"],
+      groupName: "mise tools",
+      automerge: true,
+    },
+    {
+      // Renovate's mise manager looks for a lock beside each config (.mise/mise.lock), finds
+      // none, and skips `mise lock`; this repository keeps one mise.lock at the root, which
+      // ci's `mise install --locked` reads. Per update, not per branch: a branch-mode task
+      // takes the branch's config, which follows the group's first update. renovate.yml sets
+      // MISE_SAFE=1, which stops the config from executing code, and its
+      // RENOVATE_ALLOWED_COMMANDS admits only this command.
+      description: "Rewrite the root mise.lock for each mise tool on the branch",
+      matchManagers: ["mise"],
+      postUpgradeTasks: {
+        commands: ["mise lock {{{depName}}}"],
+        installTools: { mise: {} },
+        fileFilters: ["mise.lock"],
+        executionMode: "update",
+      },
+    },
+    {
+      // A new baseline moves every C++ dependency at once; the three builds rebuild every
+      // port against it before merge.
+      description: "vcpkg's builtin-baseline",
+      matchDepNames: ["https://github.com/microsoft/vcpkg"],
+      groupName: "vcpkg baseline",
+      automerge: true,
+      schedule: ["before 6am on monday"],
+    },
+
+    // --- held versions -------------------------------------------------------------
+    {
+      description: "vcpkg's pinned ports predate CMake 4",
+      matchManagers: ["mise"],
+      matchDepNames: ["cmake"],
+      allowedVersions: "<4",
+    },
+    {
+      description: "node stays on 24, the active LTS line",
+      matchManagers: ["mise"],
+      matchDepNames: ["node"],
+      allowedVersions: "<25",
+    },
+
+    // --- release age ----------------------------------------------------------------
+    {
+      // A release sits three days before Renovate proposes it, which outlasts most takedowns
+      // of a compromised or broken release. A datasource without release timestamps (git
+      // refs, some tags) passes, or those updates would never arrive.
+      description: "Every version update waits three days",
+      matchUpdateTypes: ["patch", "minor", "major"],
+      minimumReleaseAge: "3 days",
+      minimumReleaseAgeBehaviour: "timestamp-optional",
+    },
+
+    // --- never automerge -----------------------------------------------------------
+    {
+      // Opened only from the dashboard, so a major waiting on a person never holds one of
+      // the prConcurrentLimit slots the automerged updates need.
+      description: "Any major version needs a person",
+      matchUpdateTypes: ["major"],
+      automerge: false,
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
