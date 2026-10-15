@@ -592,6 +592,9 @@ bool DiskNodeFileWriteHandle::finish() {
 	const bool written = error_code == FILE_NO_ERROR && ferror(file) == 0;
 	const bool closed = fclose(file) == 0;
 	file = nullptr;
+	if (error_code == FILE_NO_ERROR && !(written && closed)) {
+		error_code = FILE_WRITE_ERROR;
+	}
 	return written && closed;
 }
 

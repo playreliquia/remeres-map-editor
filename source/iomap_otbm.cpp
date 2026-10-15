@@ -4157,6 +4157,8 @@ namespace {
 			return { Outcome::Unchanged, {} };
 		}
 
+		// Editor::saveMap clears any older ~ before it moves the sidecar aside, so a
+		// ~ found here is the original this save moved aside.
 		const wxString backupPath = filepath + "~";
 		if (!wxFileExists(filepath) && fileMatchesXmlContent(backupPath, content)) {
 			if (wxRenameFile(backupPath, filepath, false)) {
@@ -5843,7 +5845,7 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 	// A full disk shows only in the handle's error state, which its destructor would
 	// discard, so the handle is finished here and checked.
 	if (!saveMap(map, f) || !f.finish()) {
-		error("Could not write %s", (const char*)identifier.GetFullPath().mb_str(wxConvUTF8));
+		error("Could not write %s: %s", (const char*)identifier.GetFullPath().mb_str(wxConvUTF8), f.getErrorMessage().c_str());
 		return false;
 	}
 
@@ -5871,7 +5873,7 @@ bool IOMapOTBM::saveMap(Map &map, const FileName &identifier) {
 	// The caller rolls every file back, so the .otbm never disagrees with its sidecars.
 	if (!sidecarSaveReport_.failed.empty()) {
 		const SidecarFailure &failure = sidecarSaveReport_.failed.front();
-		error("Could not write %s: %s", failure.file.c_str(), failure.error.c_str());
+		error("%s: %s", failure.file.c_str(), failure.error.c_str());
 		return false;
 	}
 	return true;

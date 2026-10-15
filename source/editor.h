@@ -208,14 +208,4 @@ inline void Editor::undraw(const PositionVector &todraw, PositionVector &toborde
 	drawInternal(todraw, toborder, alt, false);
 }
 
-// Reports failure instead of throwing: it runs after the map is written, and a
-// throw would skip the ~ bookkeeping.
-inline bool Editor::ensureBackupDirectoryExists(const std::string &backup_path) {
-	std::error_code ec;
-	if (std::filesystem::is_directory(backup_path, ec)) {
-		return true;
-	}
-	return std::filesystem::create_directory(backup_path, ec);
-}
-
 #endif

@@ -460,6 +460,7 @@
     <ClCompile Include="..\..\source\selection.cpp" />
     <ClInclude Include="..\..\source\tileset_window.h" />
     <ClInclude Include="..\..\source\updater.h" />
+    <ClInclude Include="..\..\source\utf8_path.h" />
     <ClCompile Include="..\..\source\table_brush.cpp" />
     <ClCompile Include="..\..\source\templatemapclassic.cpp" />
     <ClCompile Include="..\..\source\updater.cpp" />
