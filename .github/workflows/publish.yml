@@ -1,0 +1,106 @@
+name: Publish
+
+# Builds the Windows and Linux packages of one tag and publishes both or neither. release-please
+# tags `v<version>` when its release pull request merges (release.yml). This workflow calls the
+# reusable builds ci.yml runs, each of which runs `mise run package` and uploads a zip holding
+# the editor with data/, brushes/, icons/ and LICENSE.rtf. A final job that needs both renames
+# them after the tag and attaches them to the tag's GitHub release. A build that fails
+# publishes nothing.
+#
+# The in-app version stays upstream's (source/definitions.h); the fork's version lives in the
+# tag and the asset names.
+#
+# To rebuild and republish a tag, dispatch this workflow with the tag as its ref (`Use workflow
+# from` in the UI, or `gh workflow run publish.yml --ref v0.1.0`). The reusable builds check out
+# the run's ref, so a dispatch from a branch is refused rather than publishing that branch.
+"on":
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - id: v
+        env:
+          REF: ${{ github.ref }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "${REF}" in
+            refs/tags/v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "ERROR: '${REF}' is not a release tag (refs/tags/vMAJOR.MINOR.PATCH)"; exit 1 ;;
+          esac
+          echo "tag=${TAG}" >>"${GITHUB_OUTPUT}"
+
+  build-linux:
+    name: Build - Linux
+    needs: version
+    permissions:
+      contents: read
+      actions: write
+    uses: ./.github/workflows/reusable-build-linux.yml
+
+  # Reads the org's vcpkg NuGet feed and never writes it: ci's builds on main fill it.
+  build-windows:
+    name: Build - Windows
+    needs: version
+    permissions:
+      contents: read
+      packages: read
+      actions: write
+    uses: ./.github/workflows/reusable-build-windows.yml
+    with:
+      nuget: read
+
+  # The only job that writes anywhere, and it runs only when both builds succeeded.
+  publish:
+    needs: [version, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          path: ${{ runner.temp }}/artifacts
+          pattern: "{linux,windows}"
+          merge-multiple: true
+
+      - name: Name the packages after the tag
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/artifacts"
+          mv remeres-map-editor-windows-x64.zip "remeres-map-editor-${TAG}-windows-x64.zip"
+          mv remeres-map-editor-linux-x64.zip "remeres-map-editor-${TAG}-linux-x64.zip"
+          ls -l
+
+      # release-please created the release when it tagged; a tag pushed by hand has none yet.
+      # GITHUB_TOKEN can create a release and upload assets; it only cannot trigger workflows.
+      - name: Upload the packages to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/artifacts"
+          if ! gh release view "${TAG}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${TAG}" --repo "${REPOSITORY}" --title "${TAG}" --generate-notes --verify-tag
+          fi
+          gh release upload "${TAG}" "remeres-map-editor-${TAG}-windows-x64.zip" "remeres-map-editor-${TAG}-linux-x64.zip" --repo "${REPOSITORY}" --clobber
