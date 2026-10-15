@@ -82,22 +82,16 @@ jobs:
       - name: DIAG vcpkg abi
         run: |
           set +e -uo pipefail
-          source .mise/lib/preset.sh
-          for pair in vcpkg-cmake:baf4ae0206a7b8594be0fe8358ecdd97e2c03748147e454f35583839884fb944 zlib:000c1c01cca3edf1c8246372b7c38da63ace219d1b375e395bff8729b984a052; do
-            port=${pair%%:*} abi=${pair#*:}
-            zip=".cache/vcpkg/${abi:0:2}/${abi}.zip"
-            echo "=== main zip ${zip}"
-            ls -la "${zip}" || continue
-            unzip -p "${zip}" "share/${port}/vcpkg_abi_info.txt"
-          done
-          "${VCPKG_ROOT}/vcpkg" install --dry-run --debug \
-            --x-install-root=build/windows-release/vcpkg_installed \
-            --overlay-triplets=cmake/triplets \
-            --triplet=x64-windows-static-release --host-triplet=x64-windows > "${RUNNER_TEMP}/dry.log" 2>&1
-          grep -n -i 'abientries\|triplet abi\|compiler\|powershell\|cmake version\|<abientries' "${RUNNER_TEMP}/dry.log" | head -200
-          for p in 'vcpkg-cmake:x64-windows' 'zlib:x64-windows-static-release'; do
-            echo "=== computed ${p}"
-            grep -n -A40 "abientries for ${p}" "${RUNNER_TEMP}/dry.log" | head -60
+          echo "image ${ImageVersion:-unknown}"
+          args=(install --debug --x-install-root=build/windows-release/vcpkg_installed --overlay-triplets=cmake/triplets --triplet=x64-windows-static-release --host-triplet=x64-windows)
+          echo "=== step env: which cmake: $(command -v cmake)"
+          (source .mise/lib/preset.sh; "${VCPKG_ROOT}/vcpkg" "${args[@]}" --dry-run > "${RUNNER_TEMP}/dry-step.log" 2>&1)
+          echo "=== mise exec env: which cmake: $(mise exec -- bash -c 'command -v cmake')"
+          mise exec -- bash -c 'source .mise/lib/preset.sh; timeout 240 "${VCPKG_ROOT}/vcpkg" "$@" > "${RUNNER_TEMP}/real-mise.log" 2>&1' _ "${args[@]}"
+          for f in dry-step real-mise; do
+            echo "##### ${f}"
+            grep -n 'Restored\|package ABI\|Found path\|cmake.exe" --version\|Feature flag\|will be built\|will be restored\|Error' "${RUNNER_TEMP}/${f}.log" | grep -v '^.*PATH=' | head -40
+            awk '/abientries for vcpkg-cmake:x64-windows>/{f=1} f{print} /<\/abientries>/{if(f)exit}' "${RUNNER_TEMP}/${f}.log"
           done
           exit 1
 
