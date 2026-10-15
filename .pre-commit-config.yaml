@@ -110,6 +110,8 @@ repos:
         entry: mise exec -- prettier --write
         language: system
         types_or: [json, json5]
+        # release-please owns the manifest's format and rewrites it on every release.
+        exclude: ^\.release-please-manifest\.json$
 
   # --- Markdown linting ---
   - repo: local
