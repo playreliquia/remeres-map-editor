@@ -26,7 +26,7 @@ sccache = { version = "0.18.0", os = ["windows"] }
 prek = "0.5.5"
 # Linters the hooks run over the fork's own tooling files, never upstream C++.
 actionlint = "1.7.12"
-zizmor = "1.31.0"
+zizmor = "1.31.1"
 shellcheck = "0.11.0"
 shfmt = "3.14.1"
 taplo = "0.10.0"
