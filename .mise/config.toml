@@ -20,10 +20,10 @@ lockfile = true
 cmake = "3.31.12"
 ninja = "1.13.2"
 # Compiler caches: ccache for gcc and clang, sccache for MSVC (CMakePresets.json picks one per OS).
-ccache = { version = "4.14.1", os = ["linux", "macos"] }
+ccache = { version = "4.14.2", os = ["linux", "macos"] }
 sccache = { version = "0.18.0", os = ["windows"] }
 # Runs the hooks in .pre-commit-config.yaml; a single binary, so the toolset needs no Python.
-prek = "0.5.5"
+prek = "0.5.6"
 # Linters the hooks run over the fork's own tooling files, never upstream C++.
 actionlint = "1.7.12"
 zizmor = "1.31.1"
