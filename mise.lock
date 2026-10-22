@@ -46,24 +46,24 @@ url = "https://github.com/editorconfig-checker/editorconfig-checker/releases/dow
 url_api = "https://api.github.com/repos/editorconfig-checker/editorconfig-checker/releases/assets/543324056"
 
 [[tools.ccache]]
-version = "4.14.1"
+version = "4.14.2"
 backend = "github:ccache/ccache"
-specifiers = ["4.14.1"]
+specifiers = ["4.14.2"]
 
 [tools.ccache."platforms.linux-x64"]
-checksum = "sha256:ad63d19f5d09ea13f749651653a561c98a59994e673504a4266617b8754218f7"
-url = "https://github.com/ccache/ccache/releases/download/v4.14.1/ccache-4.14.1-linux-x86_64-glibc.tar.xz"
-url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/592501808"
+checksum = "sha256:bd1313f5316f594443dcb4113a4191c666ac6450e0cf016ff8cb8b080f46c160"
+url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-linux-x86_64-glibc.tar.xz"
+url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/653390076"
 
 [tools.ccache."platforms.macos-arm64"]
-checksum = "sha256:c279fa81e2e806b4d9e64d4a06cb569a84ef54151feef796e5d4f4e95a464563"
-url = "https://github.com/ccache/ccache/releases/download/v4.14.1/ccache-4.14.1-darwin.tar.gz"
-url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/592501700"
+checksum = "sha256:cf240009630b605b775c7c5c7b7105a3b196c79f31af322c1557969aa28003fc"
+url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-darwin.tar.gz"
+url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/653389938"
 
 [tools.ccache."platforms.windows-x64"]
-checksum = "sha256:6219f3865ca59aec41ee4b678df171d5d35855ecb2b6dbbbd20690b3a68af7b4"
-url = "https://github.com/ccache/ccache/releases/download/v4.14.1/ccache-4.14.1-windows-x86_64.zip"
-url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/592501853"
+checksum = "sha256:6993ce645e53192cec592ee23186200b574ac4c59097ecde8d9cfd681b47ae84"
+url = "https://github.com/ccache/ccache/releases/download/v4.14.2/ccache-4.14.2-windows-x86_64.zip"
+url_api = "https://api.github.com/repos/ccache/ccache/releases/assets/653390106"
 
 [[tools.cmake]]
 version = "3.31.12"
@@ -148,26 +148,26 @@ checksum = "sha256:f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f8
 url = "https://nodejs.org/dist/v24.22.0/node-v24.22.0-win-x64.zip"
 
 [[tools.prek]]
-version = "0.5.5"
+version = "0.5.6"
 backend = "aqua:j178/prek"
-specifiers = ["0.5.5"]
+specifiers = ["0.5.6"]
 
 [tools.prek."platforms.linux-x64"]
-checksum = "sha256:5470e4aa0fc0ad9d3de7dfaf088fb746d59c2eda3b173c06418e7c8861a520eb"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684555"
+checksum = "sha256:b0c1a9fdaf0f379c1c2809481a1e1560a4a233777ecd3c38d3e7459d77a59398"
+url = "https://github.com/j178/prek/releases/download/v0.5.6/prek-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/655367968"
 provenance = "github-attestations"
 
 [tools.prek."platforms.macos-arm64"]
-checksum = "sha256:e4bc3132023b50020e62b073bc3147082828bf250d8b9282850c6f2bed5471b6"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684483"
+checksum = "sha256:c76d0798742ba199f0723ae790732fea78978bd88a7d6b9c6962b9cdcbc4f5b1"
+url = "https://github.com/j178/prek/releases/download/v0.5.6/prek-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/655367897"
 provenance = "github-attestations"
 
 [tools.prek."platforms.windows-x64"]
-checksum = "sha256:6e52e1723b1b753b977be632a150d5516862471b29c14ad8e7d71685f07769b4"
-url = "https://github.com/j178/prek/releases/download/v0.5.5/prek-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/611684549"
+checksum = "sha256:abe28ade56f9c76b5299f0e4e406888e7e34b56effb53a3aeab72e9f3f762668"
+url = "https://github.com/j178/prek/releases/download/v0.5.6/prek-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/655367956"
 provenance = "github-attestations"
 
 [[tools.prettier]]
