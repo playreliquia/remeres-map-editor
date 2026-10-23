@@ -32,7 +32,7 @@ shfmt = "3.14.1"
 taplo = "0.10.0"
 gitleaks = "8.30.1"
 # markdownlint-cli2 and prettier install through npm, so they need node.
-node = "24.22.0"
+node = "24.22.1"
 markdownlint-cli2 = "0.23.3"
 prettier = "3.9.10"
 # aqua: the github backend's linux archive has no `ec` binary.
