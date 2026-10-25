@@ -39,7 +39,7 @@ repos:
   # An invalid config stops Renovate silently; the failure shows only in its workflow log.
   # A node hook: prek installs Renovate into its own environment under the pinned node.
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.173.1
+    rev: 44.176.2
     hooks:
       - id: renovate-config-validator
         args: [--strict]
