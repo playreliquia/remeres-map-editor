@@ -81,7 +81,7 @@ jobs:
       # No mise setup step here: renovatebot/github-action runs Renovate inside its
       # container, which installs mise for the postUpgradeTasks in .renovaterc.json5 that
       # rewrite the root mise.lock with a tool bump.
-      - uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc  # v46.3.12
+      - uses: renovatebot/github-action@266fef21329c44765ad42f9dea1f01f5d2d91084  # v46.3.13
         with:
           # A dispatch with a version runs that tag; otherwise the pinned image.
           renovate-image: ${{ inputs.version && 'ghcr.io/renovatebot/renovate' || format('ghcr.io/renovatebot/renovate:{0}', env.RENOVATE_VERSION) }}
@@ -129,7 +129,7 @@ jobs:
       # The pull request's .renovaterc.json5 goes in as the global config, and Renovate reads
       # no repository config. Merging it into main's config (useBaseBranchConfig) fails while
       # main has none, as on the pull request that adds it.
-      - uses: renovatebot/github-action@1c0cf989c02653fba0efe7ca5772338860ca71dc  # v46.3.12
+      - uses: renovatebot/github-action@266fef21329c44765ad42f9dea1f01f5d2d91084  # v46.3.13
         with:
           renovate-image: ghcr.io/renovatebot/renovate:${{ env.RENOVATE_VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
