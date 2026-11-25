@@ -41,7 +41,7 @@ env:
   # The Renovate image both jobs run, by tag and digest. Renovate bumps it behind the three-day
   # release age, in one group with the renovate-config-validator hook in .pre-commit-config.yaml.
   # renovate: datasource=docker depName=ghcr.io/renovatebot/renovate
-  RENOVATE_VERSION: 44.260.0@sha256:85bab2f3a82b18df7e239fdf56b31e672bc744a468d9b0490468001ec7fea8f6
+  RENOVATE_VERSION: 44.262.2@sha256:2d5cd4c778b9a2c36623302ceec231a813d8eed77cea19da13b73dd4e8e92e54
 
 jobs:
   # The App's secrets reach only this job, which runs on push, schedule and dispatch, never on
